@@ -652,8 +652,11 @@ async function saveBlob(blob, fname){
     return;
   }
   // в браузере: показываем карточку с кнопками — «Поделиться» и скачивание работают только по нажатию
-  if (VS.exportedUrl) URL.revokeObjectURL(VS.exportedUrl);
-  VS.exportedUrl = URL.createObjectURL(blob);
+  if (VS.exportedUrl && VS.exportedUrl.startsWith('blob:')) URL.revokeObjectURL(VS.exportedUrl);
+  // обычная ссылка сайта (через офлайн-модуль) скачивается там, где ссылки blob: не работают
+  const swUrl = await swFileUrl(blob, fname);
+  VS.exportedUrl = swUrl || URL.createObjectURL(blob);
+  VS.exportedView = swUrl ? swUrl + '?view' : VS.exportedUrl;
   VS.exported = {blob, fname};
   toast('Видео готово');
 }
@@ -666,11 +669,13 @@ function exportedCard(){
   const x = VS.exported, mb = (x.blob.size / 1048576).toFixed(1).replace('.', ',');
   const kind = x.blob.type === 'video/mp4' ? 'MP4' : 'WebM';
   const share = canShareFile();
+  // ссылка сайта скачивается переходом (имя файла отдаёт офлайн-модуль); у blob: нужен атрибут download
+  const dlAttr = VS.exportedUrl.startsWith('blob:') ? `download="${esc(x.fname)}"` : '';
   const btns = IS_IOS
     ? (share ? `<button class="btn" data-act="vshare">Сохранить в Фото</button>` : '') +
-      `<a class="btn ghost" href="${VS.exportedUrl}" download="${esc(x.fname)}" data-act="vdl">Скачать в Файлы</a>
-       <a class="btn ghost" href="${VS.exportedUrl}" target="_blank" rel="noopener">Открыть видео</a>`
-    : `<a class="btn" href="${VS.exportedUrl}" download="${esc(x.fname)}" data-act="vdl">Скачать видео</a>` +
+      `<a class="btn ghost" href="${VS.exportedUrl}" ${dlAttr} data-act="vdl">Скачать в Файлы</a>
+       <a class="btn ghost" href="${VS.exportedView}" target="_blank" rel="noopener">Открыть видео</a>`
+    : `<a class="btn" href="${VS.exportedUrl}" ${dlAttr} data-act="vdl">Скачать видео</a>` +
       (share ? `<button class="btn ghost" data-act="vshare">Поделиться</button>` : '');
   return `<div class="vdone"><b>Видео готово</b><span class="muted small">${fmtClock(VS.dur)} · ${mb} МБ · ${kind}</span></div>${btns}
     ${IS_IOS ? '<div class="muted small">Если «Сохранить в Фото» не сработало: «Открыть видео» → значок «Поделиться» → «Сохранить видео».</div>' : ''}`;

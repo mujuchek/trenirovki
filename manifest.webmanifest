@@ -1,6 +1,6 @@
 {
-  "name": "Тренировки",
-  "short_name": "Тренировки",
+  "name": "TrenoNote",
+  "short_name": "TrenoNote",
   "description": "План тренировок, разминки и заметки тренера. Работает без интернета.",
   "lang": "ru",
   "start_url": "./",
