@@ -1,6 +1,6 @@
 // Офлайн-кэш: после первого открытия приложение работает без интернета.
 // Сначала пробуем сеть (чтобы приходили обновления), без сети отдаём из кэша.
-const CACHE = 'powerlift-v14';
+const CACHE = 'powerlift-v15';
 const DL = 'powerlift-dl';   // последний сохранённый файл (видео или копия) — для скачивания по обычной ссылке
 const FILES = ['./', 'index.html', 'video.js', 'table.js', 'vendor/mp4-muxer.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png'];
 
