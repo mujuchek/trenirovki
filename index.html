@@ -648,7 +648,7 @@ function renderSettings(){
       <div class="set-row"><span>Замки по 2,5 кг<br><span class="muted small">соревновательные</span></span>
         <button class="switch ${s.collars?'on':''}" data-act="collarsToggle" role="switch" aria-checked="${s.collars}" aria-label="Замки"></button></div>
     </div>
-    <div class="muted small" style="text-align:center;margin-top:22px">TrenoNote · версия 1.22 · работает без интернета</div>`;
+    <div class="muted small" style="text-align:center;margin-top:22px">TrenoNote · версия 1.23 · работает без интернета</div>`;
 }
 
 function render(){
@@ -879,9 +879,9 @@ function renderImport(){
     <div class="card stack">
       <label class="btn ghost file-btn">Загрузить из Excel или CSV<input type="file" id="tableFile" accept=".xlsx,.csv,.txt,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"></label>
       ${ui.sheets && ui.sheets.length > 1 ? `<select id="sheetSel" aria-label="Лист таблицы">${ui.sheets.map((s,i)=>`<option value="${i}" ${i===ui.sheetIdx?'selected':''}>Лист: ${esc(s.name)}</option>`).join('')}</select>` : ''}
-      <div class="muted small">Или вставьте текстом. Название тренировки — строка без цифр: «primary squat», «secondary bench» (или «День 1»). Упражнение — название и подходы: «присед 5x5», «жим 5x5», «тяга 5x5» или «squat 5x5», «bench 5x5», «deadlift 5x5». Если название не указано («5x5»), берётся из названия тренировки. В таблице подойдут и колонки «Упражнение / Вес / Подходы / Повторы».</div>
+      <div class="muted small">Или вставьте текстом. Название тренировки — строка без цифр, например «primary squat» (или «День 1»). Упражнение — название и подходы: «присед 5x5», «бабочка 5x5». Если название не указано («5x5»), берётся из названия тренировки. В таблице подойдут и колонки «Упражнение / Вес / Подходы / Повторы».</div>
       <input id="planName" placeholder="Название плана" value="${esc(ui.importName)}">
-      <textarea id="planText" class="mono" rows="9" placeholder="primary squat&#10;присед 5x5&#10;жим 5x5&#10;тяга 5x5&#10;&#10;secondary bench&#10;squat 5x5&#10;bench 5x5&#10;deadlift 5x5">${esc(ui.importText)}</textarea>
+      <textarea id="planText" class="mono" rows="9" placeholder="primary/secondary squat/bench/deadlift&#10;присед/жим/тяга 5x5&#10;бабочка 5x5">${esc(ui.importText)}</textarea>
       <button class="btn" data-act="parse">Разобрать</button>
     </div>
     ${preview}
