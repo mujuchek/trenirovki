@@ -519,16 +519,23 @@ async function exportVideo(){
   const k = Math.min(1, 1280 / Math.max(VS.vw, VS.vh));
   const out = document.createElement('canvas');
   out.width = Math.round(VS.vw * k / 2) * 2; out.height = Math.round(VS.vh * k / 2) * 2;
+  // Safari отдаёт кадры с холста для записи, только если холст есть на странице — держим его невидимым
+  out.style.cssText = 'position:fixed;left:0;bottom:0;width:2px;height:2px;opacity:.01;pointer-events:none;z-index:-1';
+  document.body.appendChild(out);
   const ctx = out.getContext('2d');
-  let res = null, why = '';
-  try { res = await encodeMp4(out, ctx); } catch(e) { res = null; why = e.message || e.name; }
-  if (!res) { try { res = await encodeRecorder(out, ctx); } catch(e) { res = null; why = e.message || e.name || why; } }
+  const why = [];
+  const msg = e => (e && (e.message || e.name)) || String(e);
+  let res = null;
+  try { res = await encodeMp4(out, ctx); } catch(e) { why.push('MP4: ' + msg(e)); }
+  if (!res) { try { res = await encodeRecorder(out, ctx); } catch(e) { why.push('запись: ' + msg(e)); } }
+  out.remove();
   VS.exportError = '';
-  if (res && res.blob.size > 1000) await saveBlob(res.blob, `${(VS.name || 'podhod').replace(/[^\w.-]+/g, '_')}-traektoriya.${res.ext}`);
-  else VS.exportError = 'Не получилось записать видео' + (why ? ': ' + why : '') + '. Напишите, какой у вас телефон и версия системы.';
+  if (res) await saveBlob(res.blob, `${(VS.name || 'podhod').replace(/[^\w.-]+/g, '_')}-traektoriya.${res.ext}`);
+  else VS.exportError = 'Не получилось записать видео. ' + (why.join('; ') || 'причина неизвестна') + '. Пришлите, пожалуйста, скриншот этого сообщения.';
   VS.exporting = false; render();
 }
-// проиграть видео с начала и вызвать onFrame(t) для каждого показанного кадра
+// проиграть видео с начала и вызвать onFrame(t) для каждого показанного кадра;
+// если onFrame вернёт false — остановиться
 function playFrames(onFrame, rate){
   const v = VS.el;
   return new Promise(async resolve => {
@@ -539,9 +546,10 @@ function playFrames(onFrame, rate){
     const step = (now, meta) => {
       if (done) return;
       const t = meta ? meta.mediaTime : v.currentTime;
-      onFrame(t);
+      let go = true;
+      try { go = onFrame(t) !== false; } catch(e) { go = false; }
       const bar = document.getElementById('vexp'); if (bar) bar.style.width = Math.round(t / VS.dur * 100) + '%';
-      if (v.ended || t >= VS.dur - .03) return finish();
+      if (!go || v.ended || t >= VS.dur - .03) return finish();
       if (v.requestVideoFrameCallback) v.requestVideoFrameCallback(step); else requestAnimationFrame(() => step(0, null));
     };
     v.addEventListener('ended', finish, {once:true});
@@ -549,8 +557,10 @@ function playFrames(onFrame, rate){
     v.play().then(() => { if (v.requestVideoFrameCallback) v.requestVideoFrameCallback(step); else step(0, null); }).catch(finish);
   });
 }
+// MP4 кадр за кадром (WebCodecs + mp4-muxer). Ошибку бросает с понятной причиной.
 async function encodeMp4(out, ctx){
-  if (typeof VideoEncoder === 'undefined' || typeof VideoFrame === 'undefined' || typeof Mp4Muxer === 'undefined') return null;
+  if (typeof VideoEncoder === 'undefined' || typeof VideoFrame === 'undefined') throw new Error('браузер не умеет кодировать видео (нет WebCodecs)');
+  if (typeof Mp4Muxer === 'undefined') throw new Error('не загрузился модуль MP4');
   const W = out.width, H = out.height, k = W / VS.vw;
   let cfg = null, codec = null;
   for (const [c, str] of [['avc', 'avc1.640028'], ['avc', 'avc1.4d0028'], ['avc', 'avc1.42001f'], ['avc', 'avc1.42002a'], ['vp9', 'vp09.00.40.08']]) {
@@ -558,44 +568,70 @@ async function encodeMp4(out, ctx){
     if (c === 'avc') conf.avc = {format:'avc'};
     try { const r = await VideoEncoder.isConfigSupported(conf); if (r.supported) { cfg = r.config; codec = c; break; } } catch(e) {}
   }
-  if (!cfg) return null;
+  if (!cfg) throw new Error(`кодек H.264 не поддерживается для ${W}×${H}`);
   const muxer = new Mp4Muxer.Muxer({target:new Mp4Muxer.ArrayBufferTarget(), video:{codec, width:W, height:H},
     fastStart:'in-memory', firstTimestampBehavior:'offset'});
-  let err = null, n = 0, last = -1;
-  const enc = new VideoEncoder({output:(chunk, meta) => muxer.addVideoChunk(chunk, meta), error:e => { err = e; }});
+  let err = null, n = 0, last = -1, mode = 'canvas';
+  const enc = new VideoEncoder({output:(chunk, meta) => { try { muxer.addVideoChunk(chunk, meta); } catch(e) { err = err || e; } }, error:e => { err = err || e; }});
   enc.configure(cfg);
+  // кадр для кодировщика: прямо из холста, а если браузер так не умеет (бывает в Safari) — из пикселей
+  const makeFrame = ts => {
+    if (mode === 'canvas') {
+      try { return new VideoFrame(out, {timestamp:ts}); } catch(e) { mode = 'rgba'; }
+    }
+    const img = ctx.getImageData(0, 0, W, H);
+    return new VideoFrame(img.data, {format:'RGBA', codedWidth:W, codedHeight:H, timestamp:ts});
+  };
   await playFrames(t => {
-    if (err || t <= last) return;
+    if (err) return false;
+    if (t <= last) return true;
     last = t;
-    ctx.drawImage(VS.el, 0, 0, W, H);
-    drawOverlay(ctx, k, t, true);
-    const vf = new VideoFrame(out, {timestamp:Math.round(t * 1e6)});
-    enc.encode(vf, {keyFrame:n % 60 === 0});
-    vf.close(); n++;
+    try {
+      ctx.drawImage(VS.el, 0, 0, W, H);
+      drawOverlay(ctx, k, t, true);
+      const vf = makeFrame(Math.round(t * 1e6));
+      enc.encode(vf, {keyFrame:n % 60 === 0});
+      vf.close(); n++;
+    } catch(e) { err = e; return false; }
+    return true;
   }, .5);
-  if (err || n < 2) { try { enc.close(); } catch(e) {} return null; }
-  await enc.flush(); enc.close();
+  if (!err) { try { await enc.flush(); } catch(e) { err = e; } }
+  try { enc.close(); } catch(e) {}
+  if (err) throw new Error((err.message || err.name) + ` (кадров: ${n})`);
+  if (n < 2) throw new Error('видео не проигралось при записи');
   muxer.finalize();
-  return {blob:new Blob([muxer.target.buffer], {type:'video/mp4'}), ext:'mp4'};
+  const blob = new Blob([muxer.target.buffer], {type:'video/mp4'});
+  if (blob.size < 1000) throw new Error('получился пустой файл');
+  return {blob, ext:'mp4'};
 }
+// запасной способ: запись холста (MediaRecorder)
 async function encodeRecorder(out, ctx){
-  if (typeof MediaRecorder === 'undefined') return null;
+  if (typeof MediaRecorder === 'undefined') throw new Error('нет MediaRecorder');
+  if (!out.captureStream) throw new Error('браузер не умеет записывать холст');
   const types = ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
-  const mime = types.find(t => MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)) || 'video/webm';
+  const mime = types.find(t => MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t));
+  if (!mime) throw new Error('нет подходящего формата записи');
+  const k = out.width / VS.vw;
+  ctx.drawImage(VS.el, 0, 0, out.width, out.height);          // первый кадр — до старта записи
   const rec = new MediaRecorder(out.captureStream(30), {mimeType:mime, videoBitsPerSecond:8e6});
   const chunks = [];
+  let recErr = null;
   rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+  rec.onerror = e => { recErr = e.error || e; };
   const stopped = new Promise(r => rec.onstop = r);
-  const k = out.width / VS.vw;
-  let started = false;
+  let started = false, n = 0;
   await playFrames(t => {
     if (!started) { rec.start(500); started = true; }
     ctx.drawImage(VS.el, 0, 0, out.width, out.height);
     drawOverlay(ctx, k, t, true);
+    n++;
+    return !recErr;
   }, 1);
-  if (!started) return null;
+  if (!started) throw new Error('видео не проигралось при записи');
   rec.stop(); await stopped;
+  if (recErr) throw new Error(recErr.message || recErr.name || 'ошибка записи');
   let blob = new Blob(chunks, {type:mime.split(';')[0]});
+  if (blob.size < 1000) throw new Error(`получился пустой файл (${blob.size} байт, кадров ${n})`);
   // в WebM от MediaRecorder нет длительности — галерея показывает 0:00; дописываем её
   if (blob.type === 'video/webm') blob = await fixWebmDuration(blob, VS.dur * 1000);
   return {blob, ext:blob.type === 'video/mp4' ? 'mp4' : 'webm'};
