@@ -51,13 +51,15 @@ function renderVideoView(){
     panel = `
       <div class="vstats">
         <div><b>${st.count || '—'}</b><span>повторов<br>&nbsp;</span></div>
-        <div><b>${st.vel}</b><span>ср. скорость<br>м/с</span></div>
+        <div><b>${st.vel}</b><span>скорость<br>м/с</span></div>
         <div><b>${st.drift}</b><span>уход<br>см</span></div>
       </div>
       ${st.reps.length ? `<div class="card vreps">
-        <div class="vrep head"><span>Повтор</span><span>Подъём, с</span><span>Скорость, м/с</span><span>Пик, м/с</span></div>
+        <div class="vrep head"><span>№</span><span>Подъём<br>с</span><span>Скорость<br>м/с</span><span>Пик<br>м/с</span></div>
         ${st.reps.map(r => `<div class="vrep"><b>${r.n}</b><span>${r.time}</span><span>${r.vel}</span><span>${r.peak}</span></div>`).join('')}
         ${st.drop !== null ? `<div class="muted small" style="margin-top:8px">Скорость с 1-го по ${st.reps.length}-й повтор ${st.drop > 0 ? 'упала на ' + st.drop : 'выросла на ' + (-st.drop)}%</div>` : ''}
+        <div class="vnote">Точность: время ±${st.err.time} с · скорость ±${st.err.vel}% · уход ±${st.err.drift} см.
+          Цифры примерные: зависят от частоты кадров видео (${st.err.fps} к/с) и от того, насколько точно круг совпал с краем блина (он должен быть 45 см).</div>
       </div>` : `<div class="card muted small">Не нашёл подъёмов штанги. Проверьте, что круг совпадает с размером блина, и отметьте центр заново.</div>`}
       <div class="card" style="padding:2px 16px">
         <div class="set-row"><span>Траектория</span>
@@ -79,7 +81,8 @@ function renderVideoView(){
           <div class="stepper"><button data-act="vhide" data-d="-0.5" aria-label="Раньше">−</button><b>${fmtW(VS.plateHide)}</b><button data-act="vhide" data-d="0.5" aria-label="Позже">+</button></div></div>
       </div>
       <div class="card stack">
-        ${VS.exported ? `<button class="btn" data-act="vshare">Сохранить в Фото / поделиться</button>` : ''}
+        ${VS.exportError ? `<div class="warn">${esc(VS.exportError)}</div>` : ''}
+        ${VS.exported ? exportedCard() : ''}
         <button class="btn ${VS.exported?'ghost':''}" data-act="vexport" ${VS.exporting?'disabled':''}>${VS.exporting?'Сохраняю видео…':VS.exported?'Записать заново':'Сохранить видео'}</button>
         ${VS.exporting?'<div class="vprog"><i id="vexp" style="width:0%"></i></div>':''}
         <button class="btn ghost" data-act="vremark">Отметить заново</button>
@@ -181,7 +184,7 @@ function resetVideo(rerender){
   cancelAnimationFrame(VS.raf);
   if (VS.el) { VS.el.pause(); VS.el.removeAttribute('src'); VS.el.load(); }
   if (VS.url) URL.revokeObjectURL(VS.url);
-  Object.assign(VS, {url:null, el:null, overlay:null, vw:0, vh:0, dur:0, center:null, radius:0, track:null, reps:null, tracking:false, progress:0, exporting:false, exported:null});
+  Object.assign(VS, {url:null, el:null, overlay:null, vw:0, vh:0, dur:0, center:null, radius:0, track:null, reps:null, tracking:false, progress:0, exporting:false, exported:null, exportError:''});
   if (rerender) render();
 }
 
@@ -192,6 +195,7 @@ async function runTracking(){
   const v = VS.el;
   VS.tracking = true; VS.cancel = false; VS.progress = 0; render();
   const s = Math.min(1, 360 / Math.max(1, VS.vw));                         // рабочий масштаб: ширина ~360 px
+  VS.wscale = s;
   const FW = Math.round(VS.vw * s), FH = Math.round(VS.vh * s);
   const hs = Math.max(5, Math.min(18, Math.round(VS.radius * Math.max(.4, Math.cos(VS.angle * Math.PI / 180)) * s * .38)));   // половина шаблона
   const sr = Math.max(8, Math.round(hs * 1.5));                            // радиус поиска за кадр
@@ -353,7 +357,16 @@ function videoStats(){
   const f1 = v => v.toFixed(1).replace('.', ','), f2 = v => v.toFixed(2).replace('.', ',');
   const avg = reps.length ? reps.reduce((a, r) => a + r.vel, 0) / reps.length : 0;
   const drop = reps.length >= 2 ? Math.round((1 - reps[reps.length - 1].vel / reps[0].vel) * 100) : null;
+  // погрешность: время — ±2 кадра (начало и конец подъёма), масштаб — круг по блину на глаз ±4%,
+  // отслеживание — ±1,5 точки рабочего кадра
+  const dts = tr.slice(1).map((p, i) => p.t - tr[i].t).filter(d => d > 0).sort((a, b) => a - b);
+  const frame = dts.length ? dts[dts.length >> 1] : 1 / 30;
+  const posMm = 1.5 / (VS.wscale || .5) * mmPerPx, scale = .04;
+  const tErr = 2 * frame;
+  const vRel = reps.length ? reps.reduce((a, r) => a + Math.sqrt(scale ** 2 + (tErr / r.time) ** 2 + (2 * posMm / Math.max(1, r.rise * 10)) ** 2), 0) / reps.length : 0;
+  const dErr = (2 * posMm + drift * scale) / Math.max(.26, Math.cos(VS.angle * Math.PI / 180)) / 10;
   return {
+    err:{time:f2(tErr), vel:Math.max(1, Math.round(vRel * 100)), drift:f1(Math.max(.1, dErr)), fps:Math.round(1 / frame)},
     drift:f1(drift / 10), count:reps.length,
     vel:reps.length ? f2(avg) : '—',
     time:reps.length ? f1(reps.reduce((a, r) => a + r.time, 0) / reps.length) : '—',
@@ -507,11 +520,12 @@ async function exportVideo(){
   const out = document.createElement('canvas');
   out.width = Math.round(VS.vw * k / 2) * 2; out.height = Math.round(VS.vh * k / 2) * 2;
   const ctx = out.getContext('2d');
-  let res = null;
-  try { res = await encodeMp4(out, ctx); } catch(e) { res = null; }
-  if (!res) { try { res = await encodeRecorder(out, ctx); } catch(e) { res = null; } }
-  if (res) await saveBlob(res.blob, `${VS.name || 'podhod'}-traektoriya.${res.ext}`);
-  else toast('Не получилось сохранить видео на этом телефоне');
+  let res = null, why = '';
+  try { res = await encodeMp4(out, ctx); } catch(e) { res = null; why = e.message || e.name; }
+  if (!res) { try { res = await encodeRecorder(out, ctx); } catch(e) { res = null; why = e.message || e.name || why; } }
+  VS.exportError = '';
+  if (res && res.blob.size > 1000) await saveBlob(res.blob, `${(VS.name || 'podhod').replace(/[^\w.-]+/g, '_')}-traektoriya.${res.ext}`);
+  else VS.exportError = 'Не получилось записать видео' + (why ? ': ' + why : '') + '. Напишите, какой у вас телефон и версия системы.';
   VS.exporting = false; render();
 }
 // проиграть видео с начала и вызвать onFrame(t) для каждого показанного кадра
@@ -637,15 +651,29 @@ async function saveBlob(blob, fname){
     AndroidBridge.finishFile();
     return;
   }
-  // меню «Поделиться» можно открыть только по нажатию — после долгой записи показываем кнопку
-  const probe = new File([blob], fname, {type:blob.type});
-  if (navigator.canShare && navigator.canShare({files:[probe]})) {
-    VS.exported = {blob, fname};
-    toast('Видео готово — нажмите «Сохранить в Фото»');
-    return;
-  }
-  await shareOrDownload(blob, fname);
-  toast('Видео сохранено');
+  // в браузере: показываем карточку с кнопками — «Поделиться» и скачивание работают только по нажатию
+  if (VS.exportedUrl) URL.revokeObjectURL(VS.exportedUrl);
+  VS.exportedUrl = URL.createObjectURL(blob);
+  VS.exported = {blob, fname};
+  toast('Видео готово');
+}
+const IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+function canShareFile(){
+  try { return !!(VS.exported && navigator.canShare && navigator.canShare({files:[new File([VS.exported.blob], VS.exported.fname, {type:VS.exported.blob.type})]})); }
+  catch(e) { return false; }
+}
+function exportedCard(){
+  const x = VS.exported, mb = (x.blob.size / 1048576).toFixed(1).replace('.', ',');
+  const kind = x.blob.type === 'video/mp4' ? 'MP4' : 'WebM';
+  const share = canShareFile();
+  const btns = IS_IOS
+    ? (share ? `<button class="btn" data-act="vshare">Сохранить в Фото</button>` : '') +
+      `<a class="btn ghost" href="${VS.exportedUrl}" download="${esc(x.fname)}" data-act="vdl">Скачать в Файлы</a>
+       <a class="btn ghost" href="${VS.exportedUrl}" target="_blank" rel="noopener">Открыть видео</a>`
+    : `<a class="btn" href="${VS.exportedUrl}" download="${esc(x.fname)}" data-act="vdl">Скачать видео</a>` +
+      (share ? `<button class="btn ghost" data-act="vshare">Поделиться</button>` : '');
+  return `<div class="vdone"><b>Видео готово</b><span class="muted small">${fmtClock(VS.dur)} · ${mb} МБ · ${kind}</span></div>${btns}
+    ${IS_IOS ? '<div class="muted small">Если «Сохранить в Фото» не сработало: «Открыть видео» → значок «Поделиться» → «Сохранить видео».</div>' : ''}`;
 }
 
 // ---------- события вкладки ----------
@@ -658,10 +686,17 @@ document.addEventListener('click', e => {
   else if (act === 'vremark') { VS.track = null; VS.reps = null; VS.center = null; if (VS.el) VS.el.pause(); render(); }
   else if (act === 'vreset') resetVideo(true);
   else if (act === 'vtoggle') { VS[b.dataset.k] = !VS[b.dataset.k]; if (VS.showPlates) ensureSprite(); render(); }
-  else if (act === 'vexport') { VS.exported = null; exportVideo(); }
+  else if (act === 'vexport') { VS.exported = null; VS.exportError = ''; exportVideo(); }
   else if (act === 'vshare' && VS.exported) {
-    shareOrDownload(VS.exported.blob, VS.exported.fname).then(r => { if (r !== 'cancelled') toast('Готово'); });
+    // «Поделиться» вызываем сразу в обработчике нажатия — иначе браузер его не откроет
+    try {
+      const f = new File([VS.exported.blob], VS.exported.fname, {type:VS.exported.blob.type});
+      navigator.share({files:[f], title:VS.exported.fname})
+        .then(() => toast('Готово'))
+        .catch(err => { if (err && err.name !== 'AbortError') { VS.exportError = 'Не открылось «Поделиться»: ' + (err.message || err.name) + '. Попробуйте «Скачать» или «Открыть видео».'; render(); } });
+    } catch(err) { VS.exportError = 'Не открылось «Поделиться»: ' + (err.message || err.name); render(); }
   }
+  else if (act === 'vdl') toast(IS_IOS ? 'Видео в приложении «Файлы» → Загрузки' : 'Видео сохраняется в «Загрузки»');
   else if (act === 'vside') { VS.side = +b.dataset.v; render(); }
   else if (act === 'vfont') { state.settings.capFont = b.dataset.v; save(); ensureSprite(); render(); }
   else if (act === 'vhide') { VS.plateHide = Math.min(60, Math.max(.5, Math.round((VS.plateHide + (+b.dataset.d)) * 10) / 10)); render(); }

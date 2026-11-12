@@ -338,8 +338,13 @@ input[type=range]{padding:0;border:0;background:none;box-shadow:none!important;a
 .set-row:has(#vweight)>span:first-child{flex:1;min-width:0}
 .vstats div{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px}
 .vstats b{display:block;font-family:var(--display);font-size:28px;font-weight:600;line-height:1;margin-bottom:6px}
+.vstats span{white-space:nowrap}
 .vstats span{font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.06em}
 .btn[disabled]{opacity:.6}
+a.btn{display:flex;align-items:center;justify-content:center;text-decoration:none;box-sizing:border-box}
+.vdone{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.vnote{font-size:12px;color:var(--muted);margin-top:10px;line-height:1.45}
+.vrep.head span{line-height:1.25}
 .vreps{padding:6px 14px 12px}
 .vrep{display:grid;grid-template-columns:.8fr 1fr 1.2fr 1fr;gap:6px;align-items:baseline;padding:8px 0;border-bottom:1px solid var(--line);font-family:var(--display);font-size:20px}
 .vrep:last-of-type{border-bottom:0}
@@ -643,7 +648,7 @@ function renderSettings(){
       <div class="set-row"><span>Замки по 2,5 кг<br><span class="muted small">соревновательные</span></span>
         <button class="switch ${s.collars?'on':''}" data-act="collarsToggle" role="switch" aria-checked="${s.collars}" aria-label="Замки"></button></div>
     </div>
-    <div class="muted small" style="text-align:center;margin-top:22px">Тренировки · версия 1.17 · работает без интернета</div>`;
+    <div class="muted small" style="text-align:center;margin-top:22px">Тренировки · версия 1.18 · работает без интернета</div>`;
 }
 
 function render(){
@@ -1046,7 +1051,8 @@ document.addEventListener('click', e => {
 async function shareOrDownload(blob, fname){
   try {
     const file = new File([blob], fname, {type:blob.type || 'application/octet-stream'});
-    if (navigator.canShare && navigator.canShare({files:[file]})) {
+    const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    if (ios && navigator.canShare && navigator.canShare({files:[file]})) {
       await navigator.share({files:[file], title:fname});
       return 'shared';
     }
