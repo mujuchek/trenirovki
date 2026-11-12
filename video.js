@@ -41,7 +41,7 @@ function renderVideoView(){
   } else if (!tracked) {
     panel = `<div class="card stack">
       <div class="vhint"><b class="vstep">2</b>Подгоните эллипс под край блина: по высоте блина считаются сантиметры.</div>
-      <label class="vlabel">Размер блина<input type="range" id="vrad" min="${Math.round(VS.vh*.04)}" max="${Math.round(VS.vh*.45)}" step="1" value="${Math.round(VS.radius)}"></label>
+      <label class="vlabel">Размер блина<input type="range" id="vrad" min="${Math.max(3, Math.round(VS.vh*.006))}" max="${Math.round(VS.vh*.45)}" step="1" value="${Math.round(VS.radius)}"></label>
       <label class="vlabel">Угол съёмки <b id="vangv">${VS.angle}°</b><span class="muted small">0° — строго сбоку</span>
         <input type="range" id="vang" min="0" max="75" step="1" value="${VS.angle}"></label>
       <div class="opts">${[[1,'Гриф уходит влево'],[-1,'Гриф уходит вправо']].map(([v,l])=>`<button class="${VS.side===v?'on':''}" data-act="vside" data-v="${v}">${l}</button>`).join('')}</div>
@@ -50,10 +50,15 @@ function renderVideoView(){
   } else {
     panel = `
       <div class="vstats">
+        <div><b>${st.count || '—'}</b><span>повторов<br>&nbsp;</span></div>
+        <div><b>${st.vel}</b><span>ср. скорость<br>м/с</span></div>
         <div><b>${st.drift}</b><span>уход<br>см</span></div>
-        <div><b>${st.vel}</b><span>скорость<br>м/с</span></div>
-        <div><b>${st.time}</b><span>подъём<br>с</span></div>
       </div>
+      ${st.reps.length ? `<div class="card vreps">
+        <div class="vrep head"><span>Повтор</span><span>Подъём, с</span><span>Скорость, м/с</span><span>Пик, м/с</span></div>
+        ${st.reps.map(r => `<div class="vrep"><b>${r.n}</b><span>${r.time}</span><span>${r.vel}</span><span>${r.peak}</span></div>`).join('')}
+        ${st.drop !== null ? `<div class="muted small" style="margin-top:8px">Скорость с 1-го по ${st.reps.length}-й повтор ${st.drop > 0 ? 'упала на ' + st.drop : 'выросла на ' + (-st.drop)}%</div>` : ''}
+      </div>` : `<div class="card muted small">Не нашёл подъёмов штанги. Проверьте, что круг совпадает с размером блина, и отметьте центр заново.</div>`}
       <div class="card" style="padding:2px 16px">
         <div class="set-row"><span>Траектория</span>
           <button class="switch ${VS.showPath?'on':''}" data-act="vtoggle" data-k="showPath" role="switch" aria-checked="${VS.showPath}" aria-label="Траектория"></button></div>
@@ -65,7 +70,7 @@ function renderVideoView(){
           <div class="opts" style="margin-top:8px">${[['sys','Обычный','700 15px system-ui,Roboto,sans-serif'],['narrow','Узкий','600 16px Oswald,sans-serif'],['italic','Курсив','italic 800 15px system-ui,Roboto,sans-serif']]
             .map(([v,l,fnt])=>`<button class="${state.settings.capFont===v?'on':''}" data-act="vfont" data-v="${v}" style="font:${fnt};text-transform:none;letter-spacing:0">${l}</button>`).join('')}</div></div>
         <label class="set-row vlabel ${VS.showPlates?'':'off'}" style="display:block">Размер
-          <input type="range" id="vpicw" min="20" max="95" step="1" value="${Math.round(VS.pic.w * 100)}"></label>
+          <input type="range" id="vpicw" min="6" max="95" step="1" value="${Math.round(VS.pic.w * 100)}"></label>
         <label class="set-row vlabel ${VS.showPlates?'':'off'}" style="display:block">Прозрачность
           <input type="range" id="vpica" min="15" max="100" step="1" value="${Math.round(VS.pic.alpha * 100)}"></label>
         <div class="set-row ${VS.showPlates?'':'off'}"><span>Не убирать<br><span class="muted small">показывать всё видео</span></span>
@@ -100,6 +105,7 @@ function mountVideo(){
   if (!slot || !VS.el) return;
   slot.appendChild(VS.el);
   slot.appendChild(VS.overlay);
+  VS.acc = getComputedStyle(document.documentElement).getPropertyValue('--acc').trim() || '#D22B1F';
   startOverlayLoop();
   if (VS.showPlates && VS.track) ensureSprite();
 }
@@ -107,7 +113,10 @@ function startOverlayLoop(){
   cancelAnimationFrame(VS.raf);
   const loop = () => {
     if (view !== 'video' || !VS.el) return;
-    drawOverlay(VS.overlay.getContext('2d'), 1, VS.el.currentTime, false);
+    // пока идёт отслеживание или запись — слой не перерисовываем, чтобы не тормозить
+    if (!VS.tracking && !VS.exporting) drawOverlay(VS.overlay.getContext('2d'), VS.os || 1, VS.el.currentTime, false);
+    else if (!VS.cleared) { VS.overlay.getContext('2d').clearRect(0, 0, VS.overlay.width, VS.overlay.height); }
+    VS.cleared = VS.tracking || VS.exporting;
     const seek = document.getElementById('vseek'), tm = document.getElementById('vtime'), pb = document.getElementById('vplay');
     if (seek && document.activeElement !== seek) seek.value = VS.el.currentTime;
     if (tm) tm.textContent = fmtClock(VS.el.currentTime) + ' / ' + fmtClock(VS.dur);
@@ -129,7 +138,9 @@ function openVideo(file){
   VS.el = v; VS.overlay = c;
   v.addEventListener('loadedmetadata', () => {
     VS.vw = v.videoWidth; VS.vh = v.videoHeight; VS.dur = v.duration || 0;
-    c.width = VS.vw; c.height = VS.vh;
+    // слой рисуется не в полном разрешении ролика (бывает 4K), а примерно как экран — так легче телефону
+    VS.os = Math.min(1, 1000 / Math.max(VS.vw, VS.vh));
+    c.width = Math.round(VS.vw * VS.os); c.height = Math.round(VS.vh * VS.os);
     render();
   }, {once:true});
   v.addEventListener('error', () => { toast('Это видео не открывается'); resetVideo(true); }, {once:true});
@@ -170,73 +181,77 @@ function resetVideo(rerender){
   cancelAnimationFrame(VS.raf);
   if (VS.el) { VS.el.pause(); VS.el.removeAttribute('src'); VS.el.load(); }
   if (VS.url) URL.revokeObjectURL(VS.url);
-  Object.assign(VS, {url:null, el:null, overlay:null, vw:0, vh:0, dur:0, center:null, radius:0, track:null, tracking:false, progress:0, exporting:false, exported:null});
+  Object.assign(VS, {url:null, el:null, overlay:null, vw:0, vh:0, dur:0, center:null, radius:0, track:null, reps:null, tracking:false, progress:0, exporting:false, exported:null});
   if (rerender) render();
 }
 
 // ---------- отслеживание: сопоставление шаблона вокруг центра блина кадр за кадром ----------
+// Каждый кадр копируется не целиком, а только небольшое окно вокруг прошлого положения блина:
+// так в десятки раз меньше данных за кадр и телефон не тормозит.
 async function runTracking(){
   const v = VS.el;
   VS.tracking = true; VS.cancel = false; VS.progress = 0; render();
-  const W = 320, s = W / VS.vw, H = Math.max(1, Math.round(VS.vh * s));
-  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const s = Math.min(1, 360 / Math.max(1, VS.vw));                         // рабочий масштаб: ширина ~360 px
+  const FW = Math.round(VS.vw * s), FH = Math.round(VS.vh * s);
+  const hs = Math.max(5, Math.min(18, Math.round(VS.radius * Math.max(.4, Math.cos(VS.angle * Math.PI / 180)) * s * .38)));   // половина шаблона
+  const sr = Math.max(8, Math.round(hs * 1.5));                            // радиус поиска за кадр
+  const n = 2 * hs + 1, R = sr + hs + 3, WN = 2 * R + 1;                   // окно WN×WN
+  const cv = document.createElement('canvas'); cv.width = cv.height = WN;
   const cx = cv.getContext('2d', {willReadFrequently:true});
-  const hs = Math.max(6, Math.min(18, Math.round(VS.radius * Math.max(.4, Math.cos(VS.angle * Math.PI / 180)) * s * .38)));   // половина размера шаблона
-  const sr = Math.max(10, Math.round(hs * 1.5));                           // радиус поиска за кадр
-  const n = 2 * hs + 1;
-  const gray = () => {
-    cx.drawImage(v, 0, 0, W, H);
-    const d = cx.getImageData(0, 0, W, H).data, g = new Float32Array(W * H);
+  const grab = (px, py) => {
+    const ox = Math.round(px) - R, oy = Math.round(py) - R;
+    cx.clearRect(0, 0, WN, WN);
+    cx.drawImage(v, ox / s, oy / s, WN / s, WN / s, 0, 0, WN, WN);
+    const d = cx.getImageData(0, 0, WN, WN).data, g = new Float32Array(WN * WN);
     for (let i = 0, j = 0; i < g.length; i++, j += 4) g[i] = d[j] * .299 + d[j + 1] * .587 + d[j + 2] * .114;
-    return g;
+    return {g, ox, oy};
   };
   const patch = (g, x, y) => {
     const p = new Float32Array(n * n); let k = 0, m = 0;
     for (let dy = -hs; dy <= hs; dy++) for (let dx = -hs; dx <= hs; dx++) {
-      const xx = Math.min(W - 1, Math.max(0, x + dx)), yy = Math.min(H - 1, Math.max(0, y + dy));
-      const val = g[yy * W + xx]; p[k++] = val; m += val;
+      const val = g[Math.min(WN - 1, Math.max(0, y + dy)) * WN + Math.min(WN - 1, Math.max(0, x + dx))];
+      p[k++] = val; m += val;
     }
     m /= k; for (let i = 0; i < k; i++) p[i] -= m;
     return p;
   };
   const cost = (g, tm, x, y, limit) => {
     let m = 0;
-    for (let dy = -hs; dy <= hs; dy += 2) { const row = (y + dy) * W; for (let dx = -hs; dx <= hs; dx += 2) m += g[row + x + dx]; }
+    for (let dy = -hs; dy <= hs; dy += 2) { const row = (y + dy) * WN; for (let dx = -hs; dx <= hs; dx += 2) m += g[row + x + dx]; }
     m /= Math.ceil(n / 2) ** 2;
     let sad = 0, k = 0;
     for (let dy = -hs; dy <= hs; dy++) {
-      const row = (y + dy) * W;
-      for (let dx = -hs; dx <= hs; dx++) { sad += Math.abs(g[row + x + dx] - m - tm[k++]); }
+      const row = (y + dy) * WN;
+      for (let dx = -hs; dx <= hs; dx++) sad += Math.abs(g[row + x + dx] - m - tm[k++]);
       if (sad > limit) return sad;
     }
     return sad;
   };
-  const search = (g, tm, px, py) => {
-    let best = Infinity, bx = px, by = py;
+  const search = (g, tm) => {
+    let best = Infinity, bx = R, by = R;
     const tryAt = (x, y) => {
-      if (x - hs < 0 || y - hs < 0 || x + hs >= W || y + hs >= H) return;
+      if (x - hs < 0 || y - hs < 0 || x + hs >= WN || y + hs >= WN) return;
       const c = cost(g, tm, x, y, best);
       if (c < best) { best = c; bx = x; by = y; }
     };
-    for (let oy = -sr; oy <= sr; oy += 2) for (let ox = -sr; ox <= sr; ox += 2) tryAt(px + ox, py + oy);
-    const cx0 = bx, cy0 = by;
-    for (let oy = -2; oy <= 2; oy++) for (let ox = -2; ox <= 2; ox++) tryAt(cx0 + ox, cy0 + oy);
+    for (let oy = -sr; oy <= sr; oy += 2) for (let ox = -sr; ox <= sr; ox += 2) tryAt(R + ox, R + oy);
+    const x0 = bx, y0 = by;
+    for (let oy = -2; oy <= 2; oy++) for (let ox = -2; ox <= 2; ox++) tryAt(x0 + ox, y0 + oy);
     return {x:bx, y:by};
   };
 
   v.pause(); v.playbackRate = 1;
-  v.currentTime = VS.t0;
-  await new Promise(r => v.addEventListener('seeked', r, {once:true}));
-  let px = Math.round(VS.center.x * s), py = Math.round(VS.center.y * s);
-  let tm = patch(gray(), px, py);
+  await new Promise(r => { v.addEventListener('seeked', r, {once:true}); v.currentTime = VS.t0; });
+  let px = VS.center.x * s, py = VS.center.y * s;
+  let w0 = grab(px, py), tm = patch(w0.g, R, R);
   const raw = [{t:VS.t0, x:px / s, y:py / s}];
 
   // один кадр: найти блин рядом с прошлым положением и записать точку
   const processFrame = (t) => {
-    const g = gray();
-    const p = search(g, tm, px, py);
-    px = p.x; py = p.y;
-    const cur = patch(g, px, py);
+    const w = grab(px, py);
+    const p = search(w.g, tm);
+    px = Math.min(FW - 1, Math.max(0, w.ox + p.x)); py = Math.min(FH - 1, Math.max(0, w.oy + p.y));
+    const cur = patch(w.g, p.x, p.y);
     for (let i = 0; i < tm.length; i++) tm[i] = tm[i] * .82 + cur[i] * .18;   // шаблон понемногу обновляется
     if (t > raw[raw.length - 1].t) raw.push({t, x:px / s, y:py / s});
     VS.progress = Math.min(1, (t - VS.t0) / Math.max(.01, VS.dur - VS.t0));
@@ -274,6 +289,7 @@ async function runTracking(){
     for (let j = Math.max(0, i - 2); j <= Math.min(raw.length - 1, i + 2); j++) { sx += raw[j].x; sy += raw[j].y; c++; }
     return {t:p.t, x:sx / c, y:sy / c};
   });
+  VS.reps = null;
   v.currentTime = VS.t0;
   toast(VS.cancel ? 'Остановлено' : 'Готово');
   render();
@@ -289,24 +305,59 @@ function posAt(t){
   return {t, x:a.x + (b.x - a.x) * k, y:a.y + (b.y - a.y) * k};
 }
 
-// ---------- цифры подхода ----------
+// ---------- цифры подхода: разбор на повторы ----------
+// Ищем развороты штанги по вертикали (зигзаг с порогом 6 см). Каждый отрезок «снизу вверх» — подъём
+// одного повтора. Время подъёма — от момента, когда штанга пошла вверх (3% пути), до 97% пути.
+function videoReps(){
+  if (VS.reps) return VS.reps;
+  const tr = VS.track, mmPerPx = PLATE_MM / (VS.radius * 2);
+  const H = 60 / mmPerPx;
+  const piv = [0]; let dir = 0, ext = 0;
+  for (let i = 1; i < tr.length; i++) {
+    const y = tr[i].y;
+    if (dir === 0) {
+      if (y - tr[0].y >= H) { dir = 1; ext = i; }
+      else if (tr[0].y - y >= H) { dir = -1; ext = i; }
+    } else if (dir === 1) {                       // вниз (ось Y вниз): ищем нижнюю точку
+      if (y > tr[ext].y) ext = i;
+      else if (tr[ext].y - y >= H) { piv.push(ext); dir = -1; ext = i; }
+    } else {                                      // вверх: ищем верхнюю точку
+      if (y < tr[ext].y) ext = i;
+      else if (y - tr[ext].y >= H) { piv.push(ext); dir = 1; ext = i; }
+    }
+  }
+  if (dir !== 0) piv.push(ext);
+  const reps = [];
+  for (let k = 0; k + 1 < piv.length; k++) {
+    const a = piv[k], b = piv[k + 1];
+    const range = tr[a].y - tr[b].y;              // > 0 — подъём
+    if (range < H) continue;
+    let s = a, e = b;
+    for (let i = a; i <= b; i++) if (tr[a].y - tr[i].y >= range * .03) { s = i; break; }
+    for (let i = s; i <= b; i++) if (tr[a].y - tr[i].y >= range * .97) { e = i; break; }
+    const dt = tr[e].t - tr[s].t;
+    if (dt < .1) continue;
+    const dist = (tr[s].y - tr[e].y) * mmPerPx / 1000;          // м
+    let peak = 0;
+    for (let i = s + 2; i <= e - 2; i++) peak = Math.max(peak, (tr[i - 2].y - tr[i + 2].y) * mmPerPx / 1000 / Math.max(1e-3, tr[i + 2].t - tr[i - 2].t));
+    reps.push({time:dt, vel:dist / dt, peak:Math.max(peak, dist / dt), rise:dist * 100});
+  }
+  return (VS.reps = reps);
+}
 function videoStats(){
   const tr = VS.track, mmPerPx = PLATE_MM / (VS.radius * 2);
-  let low = 0;
-  tr.forEach((p, i) => { if (p.y > tr[low].y) low = i; });         // самая нижняя точка (ось Y вниз)
-  let top = low;
-  for (let i = low; i < tr.length; i++) if (tr[i].y < tr[top].y) top = i; // верх после подъёма
-  const rise = (tr[low].y - tr[top].y) * mmPerPx;                     // мм
-  const dt = tr[top].t - tr[low].t;
   const x0 = tr[0].x;
   // под углом движение вперёд-назад выглядит короче в cos(угла) раз
   const drift = Math.max(...tr.map(p => Math.abs(p.x - x0))) * mmPerPx / Math.max(.26, Math.cos(VS.angle * Math.PI / 180));
-  const rom = (Math.max(...tr.map(p => p.y)) - Math.min(...tr.map(p => p.y))) * mmPerPx;
-  const f1 = v => v.toFixed(1).replace('.', ',');
+  const reps = videoReps();
+  const f1 = v => v.toFixed(1).replace('.', ','), f2 = v => v.toFixed(2).replace('.', ',');
+  const avg = reps.length ? reps.reduce((a, r) => a + r.vel, 0) / reps.length : 0;
+  const drop = reps.length >= 2 ? Math.round((1 - reps[reps.length - 1].vel / reps[0].vel) * 100) : null;
   return {
-    rom: f1(rom / 10), drift: f1(drift / 10),
-    vel: dt > .05 && rise > 20 ? (rise / 1000 / dt).toFixed(2).replace('.', ',') : '—',
-    time: dt > .05 && rise > 20 ? f1(dt) : '—'
+    drift:f1(drift / 10), count:reps.length,
+    vel:reps.length ? f2(avg) : '—',
+    time:reps.length ? f1(reps.reduce((a, r) => a + r.time, 0) / reps.length) : '—',
+    drop, reps:reps.map((r, i) => ({n:i + 1, time:f2(r.time), vel:f2(r.vel), peak:f2(r.peak), rise:Math.round(r.rise)}))
   };
 }
 
@@ -314,7 +365,7 @@ function videoStats(){
 function drawOverlay(ctx, k, t, exporting){
   const W = VS.vw * k, H = VS.vh * k;
   if (!exporting) ctx.clearRect(0, 0, W, H);
-  const acc = getComputedStyle(document.documentElement).getPropertyValue('--acc').trim() || '#D22B1F';
+  const acc = VS.acc || '#D22B1F';
   const lw = Math.max(2, VS.vw * .007) * k;
   if (!VS.track) {
     if (!VS.center || exporting) return;
@@ -445,44 +496,133 @@ function appFontFaces(){
 }
 
 // ---------- сохранение готового видео ----------
+// Основной способ: каждый кадр видео с траекторией кодируется в H.264 и складывается в MP4 со своим
+// временем (WebCodecs + mp4-muxer). Ролик получается плавным и с правильной длительностью,
+// даже если телефон во время сохранения притормаживает. Запасной способ — запись холста (MediaRecorder).
 async function exportVideo(){
   if (VS.exporting) return;
-  if (typeof MediaRecorder === 'undefined') { toast('Запись видео не поддерживается'); return; }
-  VS.exporting = true; render();
+  VS.exporting = true; VS.exported = null; render();
   if (VS.showPlates) { await ensureSprite(); while (VS.spriteBusy) await new Promise(r => setTimeout(r, 50)); }
-  const v = VS.el;
   const k = Math.min(1, 1280 / Math.max(VS.vw, VS.vh));
   const out = document.createElement('canvas');
   out.width = Math.round(VS.vw * k / 2) * 2; out.height = Math.round(VS.vh * k / 2) * 2;
   const ctx = out.getContext('2d');
+  let res = null;
+  try { res = await encodeMp4(out, ctx); } catch(e) { res = null; }
+  if (!res) { try { res = await encodeRecorder(out, ctx); } catch(e) { res = null; } }
+  if (res) await saveBlob(res.blob, `${VS.name || 'podhod'}-traektoriya.${res.ext}`);
+  else toast('Не получилось сохранить видео на этом телефоне');
+  VS.exporting = false; render();
+}
+// проиграть видео с начала и вызвать onFrame(t) для каждого показанного кадра
+function playFrames(onFrame, rate){
+  const v = VS.el;
+  return new Promise(async resolve => {
+    v.pause();
+    await new Promise(r => { v.addEventListener('seeked', r, {once:true}); v.currentTime = 0; });
+    let done = false;
+    const finish = () => { if (done) return; done = true; v.pause(); v.playbackRate = 1; resolve(); };
+    const step = (now, meta) => {
+      if (done) return;
+      const t = meta ? meta.mediaTime : v.currentTime;
+      onFrame(t);
+      const bar = document.getElementById('vexp'); if (bar) bar.style.width = Math.round(t / VS.dur * 100) + '%';
+      if (v.ended || t >= VS.dur - .03) return finish();
+      if (v.requestVideoFrameCallback) v.requestVideoFrameCallback(step); else requestAnimationFrame(() => step(0, null));
+    };
+    v.addEventListener('ended', finish, {once:true});
+    v.playbackRate = rate;
+    v.play().then(() => { if (v.requestVideoFrameCallback) v.requestVideoFrameCallback(step); else step(0, null); }).catch(finish);
+  });
+}
+async function encodeMp4(out, ctx){
+  if (typeof VideoEncoder === 'undefined' || typeof VideoFrame === 'undefined' || typeof Mp4Muxer === 'undefined') return null;
+  const W = out.width, H = out.height, k = W / VS.vw;
+  let cfg = null, codec = null;
+  for (const [c, str] of [['avc', 'avc1.640028'], ['avc', 'avc1.4d0028'], ['avc', 'avc1.42001f'], ['avc', 'avc1.42002a'], ['vp9', 'vp09.00.40.08']]) {
+    const conf = {codec:str, width:W, height:H, bitrate:6e6, framerate:30};
+    if (c === 'avc') conf.avc = {format:'avc'};
+    try { const r = await VideoEncoder.isConfigSupported(conf); if (r.supported) { cfg = r.config; codec = c; break; } } catch(e) {}
+  }
+  if (!cfg) return null;
+  const muxer = new Mp4Muxer.Muxer({target:new Mp4Muxer.ArrayBufferTarget(), video:{codec, width:W, height:H},
+    fastStart:'in-memory', firstTimestampBehavior:'offset'});
+  let err = null, n = 0, last = -1;
+  const enc = new VideoEncoder({output:(chunk, meta) => muxer.addVideoChunk(chunk, meta), error:e => { err = e; }});
+  enc.configure(cfg);
+  await playFrames(t => {
+    if (err || t <= last) return;
+    last = t;
+    ctx.drawImage(VS.el, 0, 0, W, H);
+    drawOverlay(ctx, k, t, true);
+    const vf = new VideoFrame(out, {timestamp:Math.round(t * 1e6)});
+    enc.encode(vf, {keyFrame:n % 60 === 0});
+    vf.close(); n++;
+  }, .5);
+  if (err || n < 2) { try { enc.close(); } catch(e) {} return null; }
+  await enc.flush(); enc.close();
+  muxer.finalize();
+  return {blob:new Blob([muxer.target.buffer], {type:'video/mp4'}), ext:'mp4'};
+}
+async function encodeRecorder(out, ctx){
+  if (typeof MediaRecorder === 'undefined') return null;
   const types = ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
   const mime = types.find(t => MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)) || 'video/webm';
-  const ext = mime.startsWith('video/mp4') ? 'mp4' : 'webm';
   const rec = new MediaRecorder(out.captureStream(30), {mimeType:mime, videoBitsPerSecond:8e6});
   const chunks = [];
   rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
   const stopped = new Promise(r => rec.onstop = r);
-  v.pause(); v.currentTime = 0;
-  await new Promise(r => v.addEventListener('seeked', r, {once:true}));
-  rec.start(500);
-  await new Promise(resolve => {
-    const frame = (now, meta) => {
-      const t = meta ? meta.mediaTime : v.currentTime;
-      ctx.drawImage(v, 0, 0, out.width, out.height);
-      drawOverlay(ctx, out.width / VS.vw, t, true);
-      const bar = document.getElementById('vexp'); if (bar) bar.style.width = Math.round(t / VS.dur * 100) + '%';
-      if (v.ended || t >= VS.dur - .03) return resolve();
-      if (v.requestVideoFrameCallback) v.requestVideoFrameCallback(frame); else requestAnimationFrame(() => frame(0, null));
-    };
-    v.addEventListener('ended', () => resolve(), {once:true});
-    v.play().then(() => { if (v.requestVideoFrameCallback) v.requestVideoFrameCallback(frame); else frame(0, null); }).catch(resolve);
-  });
-  v.pause();
+  const k = out.width / VS.vw;
+  let started = false;
+  await playFrames(t => {
+    if (!started) { rec.start(500); started = true; }
+    ctx.drawImage(VS.el, 0, 0, out.width, out.height);
+    drawOverlay(ctx, k, t, true);
+  }, 1);
+  if (!started) return null;
   rec.stop(); await stopped;
-  const blob = new Blob(chunks, {type:mime.split(';')[0]});
-  const fname = `${VS.name || 'podhod'}-traektoriya.${ext}`;
-  await saveBlob(blob, fname);
-  VS.exporting = false; render();
+  let blob = new Blob(chunks, {type:mime.split(';')[0]});
+  // в WebM от MediaRecorder нет длительности — галерея показывает 0:00; дописываем её
+  if (blob.type === 'video/webm') blob = await fixWebmDuration(blob, VS.dur * 1000);
+  return {blob, ext:blob.type === 'video/mp4' ? 'mp4' : 'webm'};
+}
+// вставить Duration в заголовок WebM (секция Segment → Info)
+async function fixWebmDuration(blob, ms){
+  try {
+    const buf = new Uint8Array(await blob.arrayBuffer());
+    const vint = p => {
+      let len = 1, mask = 0x80; while (len <= 8 && !(buf[p] & mask)) { len++; mask >>= 1; }
+      let v = buf[p] & (mask - 1); for (let i = 1; i < len; i++) v = v * 256 + buf[p + i];
+      return {len, v, unknown:v === Math.pow(2, 7 * len) - 1};
+    };
+    const eid = p => { let len = 1, mask = 0x80; while (len <= 4 && !(buf[p] & mask)) { len++; mask >>= 1; } let id = 0; for (let i = 0; i < len; i++) id = id * 256 + buf[p + i]; return {len, id}; };
+    const enc = (val, len) => { const b = new Uint8Array(len); for (let i = len - 1; i >= 0; i--) { b[i] = val % 256; val = Math.floor(val / 256); } b[0] |= 1 << (8 - len); return b; };
+    let p = 0, id = eid(p); if (id.id !== 0x1A45DFA3) return blob;
+    let sz = vint(p + id.len); p += id.len + sz.len + sz.v;
+    id = eid(p); if (id.id !== 0x18538067) return blob;                       // Segment
+    const segSize = vint(p + id.len), segHead = p + id.len;
+    let q = segHead + segSize.len;
+    while (q < buf.length) {
+      const cid = eid(q), csz = vint(q + cid.len), body = q + cid.len + csz.len;
+      if (cid.id === 0x1549A966) {                                             // Info
+        let r = body, scale = 1e6;
+        while (r < body + csz.v) {
+          const e = eid(r), es = vint(r + e.len), eb = r + e.len + es.len;
+          if (e.id === 0x4489) return blob;                                    // длительность уже есть
+          if (e.id === 0x2AD7B1) { scale = 0; for (let i = 0; i < es.v; i++) scale = scale * 256 + buf[eb + i]; }
+          r = eb + es.v;
+        }
+        const dur = new Uint8Array(11); dur.set([0x44, 0x89, 0x88]);
+        new DataView(dur.buffer).setFloat64(3, ms * 1e6 / scale);
+        const head = buf.slice(0, q + cid.len);
+        if (!segSize.unknown) head.set(enc(segSize.v + (8 - csz.len) + 11, segSize.len), segHead);
+        return new Blob([head, enc(csz.v + 11, 8), dur, buf.subarray(body)], {type:blob.type});
+      }
+      if (csz.unknown) break;
+      q = body + csz.v;
+    }
+  } catch(e) {}
+  return blob;
 }
 async function saveBlob(blob, fname){
   // в APK — через системное окно «Сохранить как», кусками через мост
@@ -515,7 +655,7 @@ document.addEventListener('click', e => {
   if (act === 'vplay' && VS.el) { if (VS.el.paused) VS.el.play().catch(()=>{}); else VS.el.pause(); }
   else if (act === 'vtrack') runTracking();
   else if (act === 'vcancel') VS.cancel = true;
-  else if (act === 'vremark') { VS.track = null; VS.center = null; if (VS.el) VS.el.pause(); render(); }
+  else if (act === 'vremark') { VS.track = null; VS.reps = null; VS.center = null; if (VS.el) VS.el.pause(); render(); }
   else if (act === 'vreset') resetVideo(true);
   else if (act === 'vtoggle') { VS[b.dataset.k] = !VS[b.dataset.k]; if (VS.showPlates) ensureSprite(); render(); }
   else if (act === 'vexport') { VS.exported = null; exportVideo(); }

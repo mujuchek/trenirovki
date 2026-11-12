@@ -340,6 +340,11 @@ input[type=range]{padding:0;border:0;background:none;box-shadow:none!important;a
 .vstats b{display:block;font-family:var(--display);font-size:28px;font-weight:600;line-height:1;margin-bottom:6px}
 .vstats span{font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.06em}
 .btn[disabled]{opacity:.6}
+.vreps{padding:6px 14px 12px}
+.vrep{display:grid;grid-template-columns:.8fr 1fr 1.2fr 1fr;gap:6px;align-items:baseline;padding:8px 0;border-bottom:1px solid var(--line);font-family:var(--display);font-size:20px}
+.vrep:last-of-type{border-bottom:0}
+.vrep.head{font-family:inherit;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.vrep b{font-weight:600;color:var(--acc-text)}
 .vlabel{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px;font-weight:600}
 .vlabel b{font-family:var(--display);font-size:18px}
 .vlabel input{flex-basis:100%}
@@ -638,7 +643,7 @@ function renderSettings(){
       <div class="set-row"><span>Замки по 2,5 кг<br><span class="muted small">соревновательные</span></span>
         <button class="switch ${s.collars?'on':''}" data-act="collarsToggle" role="switch" aria-checked="${s.collars}" aria-label="Замки"></button></div>
     </div>
-    <div class="muted small" style="text-align:center;margin-top:22px">Тренировки · версия 1.16 · работает без интернета</div>`;
+    <div class="muted small" style="text-align:center;margin-top:22px">Тренировки · версия 1.17 · работает без интернета</div>`;
 }
 
 function render(){
@@ -1491,6 +1496,7 @@ if (typeof window!=='undefined' && !window.AndroidBridge && typeof location!=='u
 // просим браузер не удалять данные и видео при нехватке места
 try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch(e){}
 </script>
+<script src="vendor/mp4-muxer.js"></script>
 <script src="video.js"></script>
 <script src="table.js"></script>
 </body>

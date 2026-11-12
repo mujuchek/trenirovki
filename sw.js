@@ -1,7 +1,7 @@
 // Офлайн-кэш: после первого открытия приложение работает без интернета.
 // Сначала пробуем сеть (чтобы приходили обновления), без сети отдаём из кэша.
-const CACHE = 'powerlift-v8';
-const FILES = ['./', 'index.html', 'video.js', 'table.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png'];
+const CACHE = 'powerlift-v9';
+const FILES = ['./', 'index.html', 'video.js', 'table.js', 'vendor/mp4-muxer.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)));
