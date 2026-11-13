@@ -27,20 +27,20 @@
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme=light]){
   --bg:#111214;--surface:#1A1B1E;--surface-2:#25272B;--text:#ECEBE8;--muted:#8E8C86;--line:#2A2C30;--line-strong:#3B3D42;
-  --acc:#E8443A;--acc-soft:rgba(232,68,58,.15);--ok:#34A65C;--ok-soft:rgba(52,166,92,.15);--danger:#F0625A;
+  --acc:#D0382D;--acc-text:#F0625A;--acc-hi:#F0625A;--acc-soft:rgba(232,68,58,.15);--ok:#34A65C;--ok-soft:rgba(52,166,92,.15);--danger:#F0625A;
   --inv-bg:#2A2C31;--inv-fg:#ECEBE8;--inv-line:#43464C;
   --pattern:rgba(255,255,255,.035);--plate-mix:17%;
 }}
 :root[data-theme=dark]{
   --bg:#111214;--surface:#1A1B1E;--surface-2:#25272B;--text:#ECEBE8;--muted:#8E8C86;--line:#2A2C30;--line-strong:#3B3D42;
-  --acc:#E8443A;--acc-soft:rgba(232,68,58,.15);--ok:#34A65C;--ok-soft:rgba(52,166,92,.15);--danger:#F0625A;
+  --acc:#D0382D;--acc-text:#F0625A;--acc-hi:#F0625A;--acc-soft:rgba(232,68,58,.15);--ok:#34A65C;--ok-soft:rgba(52,166,92,.15);--danger:#F0625A;
   --inv-bg:#2A2C31;--inv-fg:#ECEBE8;--inv-line:#43464C;
   --pattern:rgba(255,255,255,.035);--plate-mix:17%;
 }
 /* цвет акцента — по цветам соревновательных блинов (по умолчанию красный, 25 кг) */
-:root[data-accent=blue]{--acc:#2F6FD0;--acc-soft:rgba(47,111,208,.14);--acc-ink:#fff}
-:root[data-accent=yellow]{--acc:#E0A800;--acc-soft:rgba(224,168,0,.16);--acc-ink:#151515;--acc-text:color-mix(in srgb,#E0A800 55%,var(--text))}
-:root[data-accent=graphite]{--acc:var(--text);--acc-soft:color-mix(in srgb,var(--text) 10%,transparent);--acc-ink:var(--bg)}
+:root[data-accent=blue]{--acc:#2F6FD0;--acc-hi:var(--acc);--acc-text:var(--acc);--acc-soft:rgba(47,111,208,.14);--acc-ink:#fff}
+:root[data-accent=yellow]{--acc:#E0A800;--acc-hi:var(--acc);--acc-soft:rgba(224,168,0,.16);--acc-ink:#151515;--acc-text:color-mix(in srgb,#E0A800 55%,var(--text))}
+:root[data-accent=graphite]{--acc:var(--text);--acc-hi:var(--acc);--acc-text:var(--acc);--acc-soft:color-mix(in srgb,var(--text) 10%,transparent);--acc-ink:var(--bg)}
 :root{--plate:color-mix(in srgb,var(--acc) var(--plate-mix),transparent)}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0}
@@ -81,14 +81,14 @@ svg{display:block}
 .logo{width:36px;height:36px;border-radius:6px;background:var(--acc);color:var(--acc-ink);display:grid;place-items:center;flex:none}
 .gear{margin-left:auto;width:44px;height:44px;border:1px solid var(--line-strong);border-radius:6px;background:transparent;display:grid;place-items:center;flex:none;color:var(--text)}
 .gear.on{background:var(--inv-bg);border-color:var(--inv-line);color:var(--inv-fg)}
-.title{font-family:var(--display);font-size:21px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;line-height:1.1}
+.title{font-family:var(--display);font-size:21px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;line-height:1.1}
 .sub{font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 main{padding:12px 16px calc(var(--tabbar) + 28px + env(safe-area-inset-bottom))}
 
 /* ---------- нижние вкладки ---------- */
 .tabbar{position:fixed;left:0;right:0;bottom:0;z-index:10;background:var(--surface);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
 .tabbar .wrap{display:flex;height:var(--tabbar)}
-.tabbar button{flex:1;border:0;background:none;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:var(--muted);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em}
+.tabbar button{flex:1;border:0;background:none;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:var(--muted);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
 .tabbar button.on{color:var(--text)}
 .tabbar button.on::before{content:'';position:absolute;top:-1px;left:30%;right:30%;height:3px;background:var(--acc)}
 .tabbar .ic{display:grid;place-items:center}
@@ -96,11 +96,11 @@ main{padding:12px 16px calc(var(--tabbar) + 28px + env(safe-area-inset-bottom))}
 /* ---------- общие ---------- */
 .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;margin-bottom:12px}
 .page-title{font-family:var(--display);font-size:32px;font-weight:600;text-transform:uppercase;letter-spacing:.02em;line-height:1.05;margin:6px 0 14px}
-.section-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin:22px 2px 8px}
-.kicker{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
+.section-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:22px 2px 8px}
+.kicker{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
 .muted{color:var(--muted)}
 .small{font-size:13px}
-.btn{min-height:48px;padding:12px 18px;border:0;border-radius:6px;background:var(--acc);color:var(--acc-ink);font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;width:100%}
+.btn{min-height:48px;padding:12px 18px;border:0;border-radius:6px;background:var(--acc);color:var(--acc-ink);font-size:15px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;width:100%}
 .btn:active{transform:translateY(1px)}
 .btn.ghost{background:transparent;color:var(--text);border:1px solid var(--line-strong)}
 .btn.danger{background:transparent;color:var(--danger);border:1px solid var(--line-strong)}
@@ -140,18 +140,18 @@ textarea{resize:none;line-height:1.45}
 .days::-webkit-scrollbar{display:none}
 .day{flex:none;width:118px;text-align:left;border:1px solid var(--line);background:var(--surface);border-radius:var(--r);padding:10px 12px;display:flex;flex-direction:column;gap:4px;transition:background .15s,border-color .15s,color .15s}
 .day:active{transform:translateY(1px)}
-.day-n{font-family:var(--display);font-size:26px;font-weight:600;line-height:1;color:var(--muted)}
+.day-n{font-family:var(--display);font-size:24px;font-weight:600;line-height:1;color:var(--muted)}
 .day-t{font-size:13px;font-weight:600;line-height:1.25;height:2.5em;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .day-s{font-size:12px;font-weight:700;color:var(--muted)}
 .day.complete .day-s{color:var(--ok)}
 .day.on{background:var(--inv-bg);border-color:var(--inv-line);color:var(--inv-fg);box-shadow:inset 0 -3px 0 var(--acc)}
-.day.on .day-n{color:var(--acc)}
+.day.on .day-n{color:var(--acc-hi,var(--acc))}
 :root[data-accent=graphite] .day.on .day-n{color:var(--inv-fg)}
 .day.on .day-s{color:color-mix(in srgb,var(--inv-fg) 65%,var(--inv-bg))}
 .day.on.complete .day-s{color:var(--ok)}
 
 .day-head{margin:12px 2px 10px}
-.day-head h2{margin:2px 0 0;font-family:var(--display);font-size:30px;font-weight:600;text-transform:uppercase;letter-spacing:.02em;line-height:1.05}
+.day-head h2{margin:2px 0 0;font-family:var(--display);font-size:28px;font-weight:600;text-transform:uppercase;letter-spacing:.02em;line-height:1.05}
 .banner{display:flex;gap:10px;align-items:center;background:var(--ok-soft);color:var(--ok);border:1px solid color-mix(in srgb,var(--ok) 35%,transparent);border-radius:var(--r);padding:10px 12px;margin-bottom:10px;font-weight:700}
 .banner span{flex:1}
 .banner button{flex:none;border:0;background:var(--ok);color:#fff;border-radius:6px;min-height:40px;padding:0 14px;font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.06em}
@@ -167,29 +167,29 @@ textarea{resize:none;line-height:1.45}
 
 /* ---------- упражнение ---------- */
 .ex{position:relative;overflow:hidden;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 14px 10px;margin-bottom:8px}
-.ex.is-main{border-color:var(--line-strong);padding-left:18px}
-.ex.is-main::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--acc)}
-.ex.is-main.is-done::before{background:var(--ok)}
+.ex.is-main{border-color:var(--line-strong)}
+.ex.is-main .ex-name::before{content:'';display:inline-block;width:8px;height:8px;border-radius:2px;background:var(--acc);margin-right:8px;vertical-align:.2em}
+.ex.is-main.is-done .ex-name::before{background:var(--ok)}
 .ex-top{display:flex;gap:12px;align-items:flex-start}
 .ex-info{flex:1;min-width:0}
-.ex-name{font-size:17px;font-weight:700;line-height:1.25}
-.ex.is-main .ex-name{font-family:var(--display);font-size:23px;font-weight:600;text-transform:uppercase;letter-spacing:.02em;line-height:1.1}
+.ex-name{font-size:18px;font-weight:700;line-height:1.25}
+.ex.is-main .ex-name{font-family:var(--display);font-size:24px;font-weight:600;text-transform:uppercase;letter-spacing:.02em;line-height:1.1}
 .ex.is-done .ex-name{color:var(--muted)}
 .ex-meta{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 10px;margin-top:4px}
-.scheme{font-family:var(--display);font-size:18px;font-weight:500;letter-spacing:.03em}
+.scheme{font-family:var(--display);font-size:18px;font-weight:500;letter-spacing:.02em}
 .cue{font-size:13px;font-weight:700;color:var(--acc-text);text-transform:lowercase}
 .weight{flex:none;text-align:right;line-height:.9;padding-top:2px}
 .weight b{font-family:var(--display);font-size:42px;font-weight:600}
-.weight span{display:block;font-size:11px;color:var(--muted);margin-top:4px;font-weight:700;text-transform:uppercase;letter-spacing:.12em}
+.weight span{display:block;font-size:11px;color:var(--muted);margin-top:4px;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
 .sets{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0 2px}
 .set{width:50px;height:50px;border-radius:6px;border:1.5px solid var(--line-strong);background:transparent;font-family:var(--display);font-weight:500;font-size:21px;display:grid;place-items:center;position:relative;transition:background .12s,border-color .12s,color .12s}
-.set small{position:absolute;top:3px;left:5px;font-family:system-ui,sans-serif;font-size:9px;font-weight:700;color:var(--muted)}
+.set small{position:absolute;top:3px;left:5px;font-family:system-ui,sans-serif;font-size:11px;font-weight:700;color:var(--muted)}
 .set.on{background:var(--ok);border-color:var(--ok);color:#fff}
 .set.pop{animation:pop .2s ease-out}
 @keyframes pop{from{transform:scale(.9)}to{transform:scale(1)}}
 .ex-foot{display:flex;justify-content:space-between;align-items:center;margin-top:4px}
-.ex-foot .count{font-family:var(--display);font-size:15px;color:var(--muted);letter-spacing:.04em}
-.link-btn{border:0;background:none;color:var(--muted);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;display:flex;align-items:center;gap:6px;min-height:40px;padding:0 4px;margin-left:-4px}
+.ex-foot .count{font-family:var(--display);font-size:15px;color:var(--muted);letter-spacing:.06em}
+.link-btn{border:0;background:none;color:var(--muted);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;display:flex;align-items:center;gap:6px;min-height:44px;padding:0 4px;margin-left:-4px}
 .link-btn.has{color:var(--acc-text)}
 .panel{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:4px 12px 12px;margin:4px 0 4px}
 .panel input{background:var(--surface)}
@@ -201,28 +201,28 @@ textarea{resize:none;line-height:1.45}
 /* ---------- заметки ---------- */
 .note-card{background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--text);border-radius:var(--r);padding:10px 10px 6px 14px;margin-bottom:8px}
 .note-card .head{display:flex;justify-content:space-between;align-items:center}
-.note-card .head .muted{text-transform:uppercase;letter-spacing:.07em;font-size:11px;font-weight:700}
+.note-card .head .muted{text-transform:uppercase;letter-spacing:.06em;font-size:11px;font-weight:700}
 .note-card textarea{border:0;background:none;padding:4px 0;min-height:0}
 .ex-note{display:flex;gap:10px;align-items:flex-start;padding:12px 0;border-bottom:1px solid var(--line)}
 .ex-note:last-child{border-bottom:0}
-.ex-note .lbl{font-size:11px;font-weight:700;color:var(--acc-text);text-transform:uppercase;letter-spacing:.08em;margin-bottom:2px}
+.ex-note .lbl{font-size:11px;font-weight:700;color:var(--acc-text);text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px}
 
 /* ---------- импорт ---------- */
 .preview-day{padding:12px 0;border-bottom:1px solid var(--line)}
 .preview-day:last-of-type{border-bottom:0}
-.preview-day b{display:block;margin-bottom:4px;font-family:var(--display);font-weight:600;text-transform:uppercase;letter-spacing:.03em;font-size:17px}
-.preview-day div{font-size:14px;color:var(--muted);padding:2px 0}
-.warn{background:rgba(234,179,8,.15);color:#8a5a00;border-radius:6px;padding:10px 12px;font-size:14px;margin-top:8px}
+.preview-day b{display:block;margin-bottom:4px;font-family:var(--display);font-weight:600;text-transform:uppercase;letter-spacing:.02em;font-size:18px}
+.preview-day div{font-size:15px;color:var(--muted);padding:2px 0}
+.warn{background:rgba(234,179,8,.15);color:#8a5a00;border-radius:6px;padding:10px 12px;font-size:15px;margin-top:8px}
 @media (prefers-color-scheme:dark){.warn{color:#fbbf24}}
 .file-btn{position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center}
 .file-btn input{position:absolute;inset:0;opacity:0;cursor:pointer}
 
 /* ---------- разминка ---------- */
 .seg{display:flex;border-bottom:1px solid var(--line);margin:0 0 14px}
-.seg button{flex:1;min-width:0;border:0;background:none;position:relative;min-height:44px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 6px}
+.seg button{flex:1;min-width:0;border:0;background:none;position:relative;min-height:44px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 6px}
 .seg button.on{color:var(--text)}
 .seg button.on::after{content:'';position:absolute;left:8px;right:8px;bottom:-1px;height:3px;background:var(--acc)}
-.title-input{border:0!important;background:none;padding:0;border-radius:0;font-family:var(--display);font-size:26px;font-weight:600;text-transform:uppercase;letter-spacing:.02em}
+.title-input{border:0!important;background:none;padding:0;border-radius:0;font-family:var(--display);font-size:24px;font-weight:600;text-transform:uppercase;letter-spacing:.02em;min-height:44px}
 .title-input:focus{box-shadow:inset 0 -2px 0 var(--acc)}
 .wu-video{width:100%;display:block;border-radius:6px;background:#000;max-height:72vh;aspect-ratio:3/4;object-fit:contain;margin-top:12px}
 .video-slot{display:flex;flex-direction:column;align-items:center;gap:10px;border:1.5px dashed var(--line-strong);border-radius:6px;padding:28px 16px;text-align:center;color:var(--muted);margin-top:12px}
@@ -238,7 +238,7 @@ textarea{resize:none;line-height:1.45}
 .check-row.on .ct{color:var(--muted);text-decoration:line-through}
 .wu-links{display:flex;gap:6px;overflow-x:auto;margin:0 -16px 12px;padding:0 16px 2px;scrollbar-width:none}
 .wu-links::-webkit-scrollbar{display:none}
-.wu-link{flex:none;border:1px solid var(--line-strong);background:var(--surface);border-radius:6px;padding:6px 12px 6px 10px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;display:flex;gap:6px;align-items:center;min-height:38px}
+.wu-link{flex:none;border:1px solid var(--line-strong);background:var(--surface);border-radius:6px;padding:6px 12px 6px 10px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;display:flex;gap:6px;align-items:center;min-height:44px}
 .wu-link svg{color:var(--acc)}
 
 /* ---------- таймер отдыха ---------- */
@@ -251,7 +251,7 @@ textarea{resize:none;line-height:1.45}
 #timer.show{display:flex;animation:dayIn .2s ease}
 #timer .t-time{font-family:var(--display);font-size:32px;font-weight:600;min-width:74px;line-height:1}
 #timer .t-lbl{flex:1;min-width:0;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;line-height:1.3;opacity:.7;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-#timer button{flex:none;border:0;border-radius:6px;min-height:44px;min-width:44px;padding:0 12px;font-family:var(--display);font-weight:600;font-size:17px;background:color-mix(in srgb,var(--inv-fg) 15%,transparent);color:inherit;display:grid;place-items:center}
+#timer button{flex:none;border:0;border-radius:6px;min-height:44px;min-width:44px;padding:0 12px;font-family:var(--display);font-weight:600;font-size:18px;background:color-mix(in srgb,var(--inv-fg) 15%,transparent);color:inherit;display:grid;place-items:center}
 #timer .t-prog{position:absolute;left:0;bottom:0;height:3px;background:var(--acc);transition:width .25s linear}
 #timer.done{background:var(--ok);border-color:var(--ok);color:#fff}
 #timer.done .t-lbl{opacity:1}
@@ -268,10 +268,10 @@ body.has-timer #toast{bottom:calc(var(--tabbar) + 88px + env(safe-area-inset-bot
 
 /* ---------- настройки ---------- */
 .opts{display:flex;gap:4px}
-.opts button{flex:1;min-width:0;min-height:46px;border:1px solid var(--line-strong);border-radius:6px;background:transparent;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.05em;padding:0 4px}
+.opts button{flex:1;min-width:0;min-height:46px;border:1px solid var(--line-strong);border-radius:6px;background:transparent;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.06em;padding:0 4px}
 .opts button.on{background:var(--inv-bg);border-color:var(--text);box-shadow:inset 0 0 0 1px var(--text);color:var(--inv-fg)}
 .swatches{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
-.swatch{position:relative;overflow:hidden;border:1px solid var(--line-strong);border-radius:6px;background:transparent;padding:18px 10px 10px;display:flex;flex-direction:column;align-items:flex-start;gap:2px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;text-align:left}
+.swatch{position:relative;overflow:hidden;border:1px solid var(--line-strong);border-radius:6px;background:transparent;padding:18px 10px 10px;display:flex;flex-direction:column;align-items:flex-start;gap:2px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;text-align:left}
 .swatch i{position:absolute;left:0;right:0;top:0;height:6px;background:var(--c)}
 .swatch small{color:var(--muted);font-weight:600;text-transform:none;letter-spacing:0;font-size:11px}
 .swatch.on{border-color:var(--text);box-shadow:inset 0 0 0 1px var(--text)}
@@ -279,13 +279,14 @@ body.has-timer #toast{bottom:calc(var(--tabbar) + 88px + env(safe-area-inset-bot
 .set-row:last-child{border-bottom:0}
 .set-row.off{opacity:.4;pointer-events:none}
 .stepper{display:flex;align-items:center;gap:4px;flex:none}
-.stepper button{width:42px;height:42px;border:1px solid var(--line-strong);border-radius:6px;background:transparent;font-size:22px;font-weight:500;display:grid;place-items:center;line-height:1}
+.stepper button{width:44px;height:44px;border:1px solid var(--line-strong);border-radius:6px;background:transparent;font-size:21px;font-weight:500;display:grid;place-items:center;line-height:1}
 .stepper b{font-family:var(--display);font-size:24px;font-weight:600;min-width:60px;text-align:center}
 .switch{width:54px;height:32px;border-radius:16px;border:0;background:var(--line-strong);position:relative;flex:none;padding:0;transition:background .15s}
 .switch::after{content:'';position:absolute;top:3px;left:3px;width:26px;height:26px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .15s}
 .switch.on{background:var(--ok)}
+.switch::before{content:'';position:absolute;inset:-6px -2px}
 .switch.on::after{transform:translateX(22px)}
-@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+@media (prefers-reduced-motion:reduce){.day-body.enter,.day-body.enter-next,.day-body.enter-prev,#timer.show,.sheet,.set.pop{animation:fadeIn .15s ease!important}*{transition-property:opacity,color,background-color,border-color!important}}
 
 /* ---------- калькулятор блинов ---------- */
 .weight{flex:none;text-align:right;line-height:.9;padding:2px 0 0;border:0;background:none;color:inherit}
@@ -301,26 +302,26 @@ body.has-timer #toast{bottom:calc(var(--tabbar) + 88px + env(safe-area-inset-bot
 .sheet-w{display:flex;align-items:center;justify-content:center;gap:14px;margin:6px 0 2px}
 .sheet-w .num{display:flex;align-items:baseline;gap:6px;min-width:150px;justify-content:center}
 .sheet-w b{font-family:var(--display);font-size:60px;font-weight:600;line-height:1}
-.sheet-w .num span{font-size:13px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.1em}
-.sheet-w button{width:52px;height:52px;border:1px solid var(--line-strong);border-radius:6px;background:transparent;font-family:var(--display);font-size:17px;font-weight:600}
+.sheet-w .num span{font-size:13px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+.sheet-w button{width:52px;height:52px;border:1px solid var(--line-strong);border-radius:6px;background:transparent;font-family:var(--display);font-size:18px;font-weight:600}
 /* гриф в масштабе, ракурс три четверти: торец и лицевая сторона блинов, ступица, тень */
 .bar-vis{margin:14px 0 6px;padding:10px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
 .bar-vis svg{display:block;height:210px;width:auto;max-width:100%;margin:0 auto}
 .bar-vis .edge{stroke:rgba(0,0,0,.45);stroke-width:1}
-.bar-vis .empty-bar{text-align:center;font-size:12px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-top:6px}
+.bar-vis .empty-bar{text-align:center;font-size:12px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-top:6px}
 .plate-list{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 2px}
-.plate-chip{display:flex;align-items:center;gap:8px;border:1px solid var(--line-strong);border-radius:6px;padding:6px 10px;font-family:var(--display);font-size:19px;font-weight:500}
+.plate-chip{display:flex;align-items:center;gap:8px;border:1px solid var(--line-strong);border-radius:6px;padding:6px 10px;font-family:var(--display);font-size:18px;font-weight:500}
 .plate-chip i{width:5px;height:22px;border-radius:1px;box-shadow:0 0 0 1px color-mix(in srgb,var(--text) 30%,transparent)}
 .plate-chip small{font-family:system-ui,sans-serif;font-size:12px;color:var(--muted);font-weight:700}
 .warm-row{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px}
 .warm-row button{border:1px solid var(--line-strong);border-radius:6px;background:transparent;min-height:54px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;line-height:1}
-.warm-row button b{font-family:var(--display);font-size:19px;font-weight:600}
+.warm-row button b{font-family:var(--display);font-size:18px;font-weight:600}
 .warm-row button small{font-size:11px;color:var(--muted);font-weight:700}
 .warm-row button.on{border-color:var(--text);box-shadow:inset 0 0 0 1px var(--text)}
 body.sheet-open{overflow:hidden}
 
 /* ---------- видео: траектория и блины ---------- */
-.tabbar button{letter-spacing:.04em}
+.tabbar button{letter-spacing:.06em}
 input[type=range]{padding:0;border:0;background:none;box-shadow:none!important;accent-color:var(--acc);height:34px}
 .vstage{position:relative;margin:0 auto 10px;background:#000;border-radius:var(--r);overflow:hidden}
 .vstage #vslot{position:absolute;inset:0}
@@ -334,7 +335,7 @@ input[type=range]{padding:0;border:0;background:none;box-shadow:none!important;a
 .vhint{display:flex;gap:10px;align-items:flex-start;font-size:15px}
 .vstep{flex:none;width:26px;height:26px;border-radius:50%;background:var(--acc);color:var(--acc-ink);display:grid;place-items:center;font-family:var(--display);font-size:15px;font-weight:600}
 .vstats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
-.vweight{width:92px;flex:none;text-align:right;font-family:var(--display);font-size:22px;font-weight:600;padding:8px 10px}
+.vweight{width:92px;flex:none;text-align:right;font-family:var(--display);font-size:21px;font-weight:600;padding:8px 10px}
 .set-row:has(#vweight)>span:first-child{flex:1;min-width:0}
 .vstats div{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px}
 .vstats b{display:block;font-family:var(--display);font-size:28px;font-weight:600;line-height:1;margin-bottom:6px}
@@ -346,9 +347,9 @@ a.btn{display:flex;align-items:center;justify-content:center;text-decoration:non
 .vnote{font-size:12px;color:var(--muted);margin-top:10px;line-height:1.45}
 .vrep.head span{line-height:1.25}
 .vreps{padding:6px 14px 12px}
-.vrep{display:grid;grid-template-columns:.8fr 1fr 1.2fr 1fr;gap:6px;align-items:baseline;padding:8px 0;border-bottom:1px solid var(--line);font-family:var(--display);font-size:20px}
+.vrep{display:grid;grid-template-columns:.8fr 1fr 1.2fr 1fr;gap:6px;align-items:baseline;padding:8px 0;border-bottom:1px solid var(--line);font-family:var(--display);font-size:21px}
 .vrep:last-of-type{border-bottom:0}
-.vrep.head{font-family:inherit;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.vrep.head{font-family:inherit;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
 .vrep b{font-weight:600;color:var(--acc-text)}
 .vlabel{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px;font-weight:600}
 .vlabel b{font-family:var(--display);font-size:18px}
@@ -648,7 +649,7 @@ function renderSettings(){
       <div class="set-row"><span>Замки по 2,5 кг<br><span class="muted small">соревновательные</span></span>
         <button class="switch ${s.collars?'on':''}" data-act="collarsToggle" role="switch" aria-checked="${s.collars}" aria-label="Замки"></button></div>
     </div>
-    <div class="muted small" style="text-align:center;margin-top:22px">TrenoNote · версия 1.24 · работает без интернета</div>`;
+    <div class="muted small" style="text-align:center;margin-top:22px">TrenoNote · версия 1.25 · работает без интернета</div>`;
 }
 
 function render(){
@@ -791,7 +792,7 @@ function renderPlan(){
       <h2>${esc(day.title)}</h2>
     </div>
     <div class="wu-links">${state.warmups.map((w,k)=>`<button class="wu-link" data-act="goWu" data-i="${k}">${IC.play}${esc(w.title)}</button>`).join('')}</div>
-    ${ds.complete ? `<div class="banner">${IC.trophy}<span>Тренировка выполнена!</span>
+    ${ds.complete ? `<div class="banner">${IC.trophy}<span>Тренировка выполнена</span>
       ${di < plan.sessions.length-1 ? `<button data-act="day" data-i="${di+1}">День ${di+2} →</button>` : ''}</div>` : ''}
     ${day.exercises.map(renderEx).join('')}
     </div>`;
