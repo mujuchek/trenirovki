@@ -24,11 +24,13 @@ function renderVideoView(){
     </div>
     <div class="section-title">Как это работает</div>
     <div class="card" style="padding:4px 16px">
-      ${['Выберите видео подхода из галереи','Поставьте на начало подхода и нажмите на центр блина','Подгоните размер, угол съёмки и сторону — эллипс по краю блина','Нажмите «Отследить» и сохраните видео с траекторией и блинами']
+      ${['Выберите видео подхода из галереи','Поставьте на начало подхода и нажмите на центр блина','В режиме «Агент» эллипс встанет по краю блина сам, в ручном — подгоните размер. Укажите угол съёмки и сторону','Нажмите «Отследить» и сохраните видео с траекторией и блинами']
         .map((t,i)=>`<div class="check-row"><b class="vstep">${i+1}</b><span>${t}</span></div>`).join('')}
     </div>`;
 
-  const tracked = !!VS.track;
+  const tracked = !!VS.track, agent = plateMode() === 'agent';
+  const modeSwitch = `<div class="opts" role="group" aria-label="Как ставить эллипс">${[['manual','Ручной'],['agent','Агент']]
+    .map(([v,l])=>`<button class="${plateMode()===v?'on':''}" data-act="vmode" data-v="${v}" aria-pressed="${plateMode()===v}">${l}</button>`).join('')}</div>`;
   const st = tracked ? videoStats() : null;
   let panel = '';
   if (VS.tracking) {
@@ -37,10 +39,14 @@ function renderVideoView(){
       <div class="vprog"><i id="vprog" style="width:${Math.round(VS.progress*100)}%"></i></div>
       <button class="btn ghost" data-act="vcancel">Остановить</button></div>`;
   } else if (!VS.center) {
-    panel = `<div class="card"><div class="vhint"><b class="vstep">1</b>Перемотайте на начало подхода и нажмите пальцем на <b>центр блина</b> (торец грифа).</div></div>`;
+    panel = `<div class="card stack">${modeSwitch}
+      <div class="vhint"><b class="vstep">1</b><span>Перемотайте на начало подхода и нажмите пальцем на <b>центр блина</b> (торец грифа).${agent ? ' Агент сам найдёт край блина.' : ''}</span></div></div>`;
   } else if (!tracked) {
     panel = `<div class="card stack">
-      <div class="vhint"><b class="vstep">2</b>Подгоните эллипс под край блина: по высоте блина считаются сантиметры.</div>
+      ${modeSwitch}
+      <div class="vhint"><b class="vstep">2</b><span>${!agent ? 'Подгоните эллипс под край блина: по высоте блина считаются сантиметры.'
+        : VS.autoOk ? 'Агент поставил эллипс по краю блина. Проверьте: если промахнулся — подправьте размер.'
+        : 'Агент не нашёл край блина — подгоните эллипс вручную. По высоте блина считаются сантиметры.'}</span></div>
       <label class="vlabel">Размер блина<input type="range" id="vrad" min="${Math.max(3, Math.round(VS.vh*.006))}" max="${Math.round(VS.vh*.45)}" step="1" value="${Math.round(VS.radius)}"></label>
       <label class="vlabel">Угол съёмки <b id="vangv">${VS.angle}°</b><span class="muted small">0° — строго сбоку</span>
         <input type="range" id="vang" min="0" max="75" step="1" value="${VS.angle}"></label>
@@ -159,10 +165,12 @@ function openVideo(file){
     }
     if (VS.track || VS.tracking) return;
     const r = c.getBoundingClientRect();
-    VS.center = {x:(e.clientX - r.left) / r.width * VS.vw, y:(e.clientY - r.top) / r.height * VS.vh};
-    if (!VS.radius) VS.radius = VS.vh * .16;
+    VS.tap = {x:(e.clientX - r.left) / r.width * VS.vw, y:(e.clientY - r.top) / r.height * VS.vh};
     VS.t0 = v.currentTime;
-    v.pause(); buzz(); render();
+    v.pause(); buzz();
+    if (plateMode() === 'agent') autoPlate();
+    else { VS.center = {...VS.tap}; VS.autoOk = false; if (!VS.radius) VS.radius = VS.vh * .16; }
+    render();
   });
   c.addEventListener('pointermove', e => {
     if (!VS.drag) return;
@@ -184,9 +192,112 @@ function resetVideo(rerender){
   cancelAnimationFrame(VS.raf);
   if (VS.el) { VS.el.pause(); VS.el.removeAttribute('src'); VS.el.load(); }
   if (VS.url) URL.revokeObjectURL(VS.url);
-  Object.assign(VS, {url:null, el:null, overlay:null, vw:0, vh:0, dur:0, center:null, radius:0, track:null, reps:null, tracking:false, progress:0, exporting:false, exported:null, exportError:''});
+  Object.assign(VS, {url:null, el:null, overlay:null, vw:0, vh:0, dur:0, center:null, tap:null, autoOk:false, radius:0, track:null, reps:null, tracking:false, progress:0, exporting:false, exported:null, exportError:''});
   if (rerender) render();
 }
+
+// ---------- режим «Агент»: край блина находится сам ----------
+// От точки тапа идут лучи во все стороны (под углом съёмки — по эллипсу). На каждом ищем резкие перепады яркости.
+// Расстояние, на котором перепад есть у большинства лучей, — край блина; по точкам края уточняем центр и размер.
+// Возвращает {x, y, r, conf} в пикселях кадра или null, если край не нашёлся.
+function detectPlate(src, sw, sh, c0, angleDeg){
+  const s = Math.min(1, 640 / Math.max(sw, sh));
+  const W = Math.round(sw * s), H = Math.round(sh * s);
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const cx2 = cv.getContext('2d', {willReadFrequently:true});
+  cx2.drawImage(src, 0, 0, W, H);
+  const d = cx2.getImageData(0, 0, W, H).data, g = new Float32Array(W * H);
+  for (let i = 0, j = 0; i < g.length; i++, j += 4) g[i] = d[j] * .299 + d[j + 1] * .587 + d[j + 2] * .114;
+  const at = (x, y) => {                                  // яркость с билинейной интерполяцией
+    if (x < 0 || y < 0 || x > W - 2 || y > H - 2) return NaN;
+    const x0 = x | 0, y0 = y | 0, fx = x - x0, fy = y - y0, i = y0 * W + x0;
+    return (g[i] * (1 - fx) + g[i + 1] * fx) * (1 - fy) + (g[i + W] * (1 - fx) + g[i + W + 1] * fx) * fy;
+  };
+  const cosA = Math.max(.26, Math.cos(angleDeg * Math.PI / 180));
+  const rMin = Math.max(6, Math.round(H * .03)), rMax = Math.round(H * .45), N = 90;
+  // окружность по точкам (наименьшие квадраты); точки в «круговых» координатах: X растянут обратно, эллипс → круг
+  const lsq = pts => {
+    let sx = 0, sy = 0, sxx = 0, syy = 0, sxy = 0, sz = 0, sxz = 0, syz = 0; const n = pts.length;
+    for (const p of pts) { const z = p.X * p.X + p.Y * p.Y; sx += p.X; sy += p.Y; sxx += p.X * p.X; syy += p.Y * p.Y; sxy += p.X * p.Y; sz += z; sxz += p.X * z; syz += p.Y * z; }
+    const A = [[sxx, sxy, sx, -sxz], [sxy, syy, sy, -syz], [sx, sy, n, -sz]];
+    for (let i = 0; i < 3; i++) {
+      let q = i; for (let j = i + 1; j < 3; j++) if (Math.abs(A[j][i]) > Math.abs(A[q][i])) q = j;
+      [A[i], A[q]] = [A[q], A[i]];
+      if (Math.abs(A[i][i]) < 1e-9) return null;
+      for (let j = 0; j < 3; j++) if (j !== i) { const f = A[j][i] / A[i][i]; for (let k = i; k < 4; k++) A[j][k] -= f * A[i][k]; }
+    }
+    const X0 = -A[0][3] / A[0][0] / 2, Y0 = -A[1][3] / A[1][1] / 2;
+    return {X0, Y0, R:Math.sqrt(Math.max(0, X0 * X0 + Y0 * Y0 - A[2][3] / A[2][2]))};
+  };
+  // точки перепадов яркости на 90 лучах от пальца. Каждый луч пересекает край блина ровно один раз,
+  // даже если палец не попал в центр, — поэтому ищем окружности по точкам, а не по расстоянию
+  const cx = c0.x * s, cy = c0.y * s, pts = [];
+  let rays = 0;
+  for (let k = 0; k < N; k++) {
+    const th = k / N * Math.PI * 2, ux = Math.cos(th) * cosA, uy = Math.sin(th);
+    const prof = [];
+    for (let r = 0; r <= rMax * 1.6 + 2; r++) { const v = at(cx + ux * r, cy + uy * r); if (Number.isNaN(v)) break; prof.push(v); }
+    const e = new Float32Array(prof.length); let mx = 0;
+    for (let r = 2; r + 2 < prof.length; r++) { e[r] = Math.abs((prof[r + 1] + prof[r + 2]) / 2 - (prof[r - 2] + prof[r - 1]) / 2); if (e[r] > mx) mx = e[r]; }
+    if (mx < 8) continue;
+    rays++;
+    // каждый заметный перепад — кандидат, независимо от силы: слабый край тёмного блина
+    // важен не меньше, чем яркое кольцо с надписью
+    for (let r = 3; r + 3 < prof.length; r++)
+      if (e[r] >= 10 && e[r] >= mx * .12 && e[r] >= e[r - 1] && e[r] > e[r + 1]) pts.push({X:ux * r / cosA, Y:uy * r, k});
+  }
+  if (rays < N * .4 || pts.length < 20) return null;
+  // перебор окружностей по трём случайным точкам (RANSAC); голос считается по лучам — один луч один голос
+  let seed = 12345; const rnd = () => (seed = seed * 16807 % 2147483647) / 2147483647;
+  const score = c => {
+    const tol = Math.max(1.5, c.R * .025), hit = new Uint8Array(N); let n = 0;
+    for (const p of pts) if (!hit[p.k] && Math.abs(Math.hypot(p.X - c.X0, p.Y - c.Y0) - c.R) < tol) { hit[p.k] = 1; n++; }
+    return n;
+  };
+  const ok = c => c && c.R >= rMin && c.R <= rMax && Math.hypot(c.X0, c.Y0) < c.R * .6;
+  const found = [];
+  for (let it = 0; it < 2500; it++) {
+    const a = pts[(rnd() * pts.length) | 0], b = pts[(rnd() * pts.length) | 0], c = pts[(rnd() * pts.length) | 0];
+    if (a.k === b.k || b.k === c.k || a.k === c.k) continue;
+    const c3 = lsq([a, b, c]);
+    if (!ok(c3)) continue;
+    const n = score(c3);
+    if (n < N * .25) continue;
+    // похожие окружности не дублируем — оставляем лучшую из них
+    const same = found.find(f => Math.abs(f.R - c3.R) < f.R * .04 && Math.hypot(f.X0 - c3.X0, f.Y0 - c3.Y0) < f.R * .04);
+    if (same) { if (n > same.n) Object.assign(same, c3, {n}); }
+    else found.push({...c3, n});
+  }
+  if (!found.length) return null;
+  // уточняем каждую по всем её точкам
+  for (const f of found) {
+    for (let i = 0; i < 2; i++) {
+      const tol = Math.max(1.5, f.R * .03);
+      const inl = pts.filter(p => Math.abs(Math.hypot(p.X - f.X0, p.Y - f.Y0) - f.R) < tol);
+      const r2 = inl.length >= 6 ? lsq(inl) : null;
+      if (ok(r2)) Object.assign(f, r2);
+    }
+    f.n = score(f);
+  }
+  const top = found.reduce((a, b) => b.n > a.n ? b : a);
+  // край блина — самая большая окружность, за которую голосует много лучей (обод, кольцо, ступица — внутри).
+  // Все круги блина концентричны: окружность из случайных перепадов фона с другим центром не подходит
+  const pick = found.filter(f => f.n >= top.n * .55 && Math.hypot(f.X0 - top.X0, f.Y0 - top.Y0) < Math.max(3, Math.max(f.R, top.R) * .08))
+    .sort((a, b) => b.R - a.R)[0];
+  if (pick.n < N * .45) return null;                      // голосует меньше половины лучей — это не блин
+  return {x:(cx + pick.X0 * cosA) / s, y:(cy + pick.Y0) / s, r:pick.R / s, conf:pick.n / N};
+}
+// найти блин от точки тапа и поставить эллипс; при неудаче — эллипс по умолчанию и ручная подстройка
+function autoPlate(){
+  if (!VS.tap || !VS.el) return;
+  let res = null;
+  try { res = detectPlate(VS.el, VS.vw, VS.vh, VS.tap, VS.angle); } catch(err) { res = null; }
+  VS.autoOk = !!res;
+  if (res) { VS.center = {x:res.x, y:res.y}; VS.radius = res.r; }
+  else { VS.center = {...VS.tap}; if (!VS.radius) VS.radius = VS.vh * .16; }
+  toast(res ? 'Агент нашёл край блина' : 'Агент не нашёл край блина — подгоните размер вручную');
+}
+const plateMode = () => state.settings.plateMode || 'agent';
 
 // ---------- отслеживание: сопоставление шаблона вокруг центра блина кадр за кадром ----------
 // Каждый кадр копируется не целиком, а только небольшое окно вокруг прошлого положения блина:
@@ -738,7 +849,7 @@ document.addEventListener('click', e => {
   if (act === 'vplay' && VS.el) { if (VS.el.paused) VS.el.play().catch(()=>{}); else VS.el.pause(); }
   else if (act === 'vtrack') runTracking();
   else if (act === 'vcancel') VS.cancel = true;
-  else if (act === 'vremark') { VS.track = null; VS.reps = null; VS.center = null; if (VS.el) VS.el.pause(); render(); }
+  else if (act === 'vremark') { VS.track = null; VS.reps = null; VS.center = null; VS.tap = null; if (VS.el) VS.el.pause(); render(); }
   else if (act === 'vreset') resetVideo(true);
   else if (act === 'vtoggle') { VS[b.dataset.k] = !VS[b.dataset.k]; if (VS.showPlates) ensureSprite(); render(); }
   else if (act === 'vexport') { VS.exported = null; VS.exportError = ''; exportVideo(); }
@@ -753,12 +864,19 @@ document.addEventListener('click', e => {
   }
   else if (act === 'vdl') toast(IS_IOS ? 'Видео в приложении «Файлы» → Загрузки' : 'Видео сохраняется в «Загрузки»');
   else if (act === 'vside') { VS.side = +b.dataset.v; render(); }
+  else if (act === 'vmode') {
+    state.settings.plateMode = b.dataset.v; save();
+    if (b.dataset.v === 'agent' && VS.tap && !VS.track && !VS.tracking) autoPlate();
+    render();
+  }
   else if (act === 'vfont') { state.settings.capFont = b.dataset.v; save(); ensureSprite(); render(); }
   else if (act === 'vhide') { VS.plateHide = Math.min(60, Math.max(.5, Math.round((VS.plateHide + (+b.dataset.d)) * 10) / 10)); render(); }
 });
 document.addEventListener('change', e => {
   if (e.target.id === 'vfile' && e.target.files[0]) openVideo(e.target.files[0]);
   if (e.target.id === 'vweight') e.target.value = fmtW(VS.weight);
+  // угол съёмки поменяли — агент заново ищет эллипс под новый угол
+  if (e.target.id === 'vang' && plateMode() === 'agent' && VS.tap && !VS.track) { autoPlate(); render(); }
 });
 document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'vweight') e.target.blur(); });
 document.addEventListener('input', e => {
