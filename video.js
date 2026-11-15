@@ -331,19 +331,33 @@ function videoReps(){
     }
   }
   if (dir !== 0) piv.push(ext);
-  const reps = [];
+  // скорость вверх (м/с) в точке i по соседним кадрам
+  const velAt = i => {
+    const i0 = Math.max(0, i - 2), i1 = Math.min(tr.length - 1, i + 2);
+    return (tr[i0].y - tr[i1].y) * mmPerPx / 1000 / Math.max(1e-3, tr[i1].t - tr[i0].t);
+  };
+  const ups = [];
   for (let k = 0; k + 1 < piv.length; k++) {
     const a = piv[k], b = piv[k + 1];
-    const range = tr[a].y - tr[b].y;              // > 0 — подъём
-    if (range < H) continue;
-    let s = a, e = b;
-    for (let i = a; i <= b; i++) if (tr[a].y - tr[i].y >= range * .03) { s = i; break; }
+    if (tr[a].y - tr[b].y >= H) ups.push([a, b]);   // > 0 — подъём
+  }
+  // отскок блинов от пола или дёрганье штанги — не повтор: подъём должен быть не меньше 45% самого большого
+  const full = Math.max(0, ...ups.map(([a, b]) => tr[a].y - tr[b].y));
+  const reps = [];
+  for (const [a, b] of ups) {
+    const range = tr[a].y - tr[b].y;
+    if (range < full * .45) continue;
+    let ip = a, peak = 0;
+    for (let i = a; i <= b; i++) { const v = velAt(i); if (v > peak) { peak = v; ip = i; } }
+    // начало — где штанга реально пошла вверх: скорость выше 8% пиковой (пауза на полу или на груди не считается)
+    let s = ip;
+    while (s > a && velAt(s - 1) > Math.max(.02, peak * .08)) s--;
+    for (let i = a; i <= ip; i++) if (tr[a].y - tr[i].y >= range * .03) { s = Math.max(s, i); break; }
+    let e = b;
     for (let i = s; i <= b; i++) if (tr[a].y - tr[i].y >= range * .97) { e = i; break; }
     const dt = tr[e].t - tr[s].t;
-    if (dt < .1) continue;
+    if (dt < .15) continue;
     const dist = (tr[s].y - tr[e].y) * mmPerPx / 1000;          // м
-    let peak = 0;
-    for (let i = s + 2; i <= e - 2; i++) peak = Math.max(peak, (tr[i - 2].y - tr[i + 2].y) * mmPerPx / 1000 / Math.max(1e-3, tr[i + 2].t - tr[i - 2].t));
     reps.push({time:dt, vel:dist / dt, peak:Math.max(peak, dist / dt), rise:dist * 100});
   }
   return (VS.reps = reps);
