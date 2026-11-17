@@ -317,6 +317,9 @@ body.has-timer #toast{bottom:calc(var(--tabbar) + 88px + env(safe-area-inset-bot
 .warm-row button{border:1px solid var(--line-strong);border-radius:6px;background:transparent;min-height:54px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;line-height:1}
 .warm-row button b{font-family:var(--display);font-size:18px;font-weight:600}
 .warm-row button small{font-size:11px;color:var(--muted);font-weight:700}
+.records{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:14px 16px}
+.rec{display:flex;flex-direction:column;gap:2px;min-width:0}
+.rec b{font-family:var(--display);font-size:24px;font-weight:600;line-height:1.1;font-variant-numeric:tabular-nums}
 .warm-row button.on{border-color:var(--text);box-shadow:inset 0 0 0 1px var(--text)}
 body.sheet-open{overflow:hidden}
 
@@ -503,7 +506,7 @@ function loadState(){
   ensureSettings(st);
   return st;
 }
-const DEFAULT_SETTINGS = {theme:'system', accent:'red', timerOn:true, restMain:180, restAcc:90, bar:20, collars:false, plateStyle:'painted', plateBrand:'', capFont:'sys'};
+const DEFAULT_SETTINGS = {theme:'system', accent:'red', timerOn:true, restMain:180, restAcc:90, bar:20, collars:false, plateStyle:'painted', plateBrand:'', capFont:'sys', keepAwake:true, restSound:true};
 function ensureSettings(st){ st.settings = Object.assign({}, DEFAULT_SETTINGS, st.settings || {}); }
 function ensureWarmups(st){
   if (!Array.isArray(st.warmups) || !st.warmups.length)
@@ -637,6 +640,13 @@ function renderSettings(){
         <button class="switch ${s.timerOn?'on':''}" data-act="timerToggle" role="switch" aria-checked="${s.timerOn}" aria-label="Таймер отдыха"></button></div>
       <div class="set-row ${s.timerOn?'':'off'}"><span>Основные<br><span class="muted small">упражнения с весом</span></span>${stepper('restMain')}</div>
       <div class="set-row ${s.timerOn?'':'off'}"><span>Подсобка<br><span class="muted small">остальные</span></span>${stepper('restAcc')}</div>
+      <div class="set-row ${s.timerOn?'':'off'}"><span>Звук в конце отдыха<br><span class="muted small">вместе с вибрацией</span></span>
+        <button class="switch ${s.restSound?'on':''}" data-act="soundToggle" role="switch" aria-checked="${s.restSound}" aria-label="Звук в конце отдыха"></button></div>
+    </div>
+    <div class="section-title">Тренировка</div>
+    <div class="card" style="padding:2px 16px">
+      <div class="set-row"><span>Не гасить экран<br><span class="muted small">пока приложение открыто</span></span>
+        <button class="switch ${s.keepAwake?'on':''}" data-act="awakeToggle" role="switch" aria-checked="${s.keepAwake}" aria-label="Не гасить экран"></button></div>
     </div>
     <div class="section-title">Калькулятор блинов</div>
     <div class="card" style="padding:2px 16px">
@@ -649,7 +659,7 @@ function renderSettings(){
       <div class="set-row"><span>Замки по 2,5 кг<br><span class="muted small">соревновательные</span></span>
         <button class="switch ${s.collars?'on':''}" data-act="collarsToggle" role="switch" aria-checked="${s.collars}" aria-label="Замки"></button></div>
     </div>
-    <div class="muted small" style="text-align:center;margin-top:22px">TrenoNote · версия 1.28 · работает без интернета</div>`;
+    <div class="muted small" style="text-align:center;margin-top:22px">TrenoNote · версия 1.29 · работает без интернета</div>`;
 }
 
 function render(){
@@ -795,7 +805,8 @@ function renderPlan(){
     ${ds.complete ? `<div class="banner">${IC.trophy}<span>Тренировка выполнена</span>
       ${di < plan.sessions.length-1 ? `<button data-act="day" data-i="${di+1}">День ${di+2} →</button>` : ''}</div>` : ''}
     ${day.exercises.map(renderEx).join('')}
-    </div>`;
+    </div>
+    ${renderRecords()}`;
 }
 
 function renderEx(e){
@@ -909,9 +920,14 @@ document.addEventListener('click', e => {
     if (!ex) return;
     const day = plan && plan.sessions[dayIndex(plan)];
     const wasComplete = day ? sessStats(day).complete : false;
+    const lift = ex.weight != null ? liftOf(ex.name) : null;
+    const before = lift && !ex.done.some(Boolean) ? bestLifts(ex)[lift] : undefined;
     ex.done[i] = !ex.done[i];
-    if (ex.done[i]) { buzz(); ui.lastSet = ex.id+':'+i; }
+    if (ex.done[i]) { buzz(); ui.lastSet = ex.id+':'+i; unlockSound(); }
     save(); render();
+    // первый отмеченный подход упражнения, который бьёт прошлый лучший результат, — это рекорд
+    const v = lift && ex.done[i] && before !== undefined ? e1rm(ex.weight, ex.reps) : null;
+    if (v != null && before && v > before.v) setTimeout(() => toast(`Новый рекорд · ${LIFTS.find(l => l[0] === lift)[1]} ≈ ${fmtW(v)} кг`), 400);
     const nowComplete = day && sessStats(day).complete;
     if (!wasComplete && nowComplete) { stopRest(); toast('Тренировка выполнена'); }
     else if (ex.done[i] && state.settings.timerOn)
@@ -940,9 +956,11 @@ document.addEventListener('click', e => {
   else if (act==='setBar') { state.settings.bar = +b.dataset.v; save(); render(); }
   else if (act==='setPlateStyle') { state.settings.plateStyle = b.dataset.v; save(); render(); }
   else if (act==='collarsToggle') { state.settings.collars = !state.settings.collars; save(); render(); }
+  else if (act==='soundToggle') { state.settings.restSound = !state.settings.restSound; save(); if (state.settings.restSound) { unlockSound(); beep(); } render(); }
+  else if (act==='awakeToggle') { state.settings.keepAwake = !state.settings.keepAwake; save(); updateWakeLock(); render(); }
   else if (act==='plates') {
     const ex = findExercise(b.dataset.ex);
-    if (ex && ex.weight != null) openSheet(ex.name, ex.weight);
+    if (ex && ex.weight != null) openSheet(ex.name, ex.weight, ex.reps);
   }
   else if (act==='pw' && ui.sheet) {
     ui.sheet.w = Math.max(minLoad(), Math.round((ui.sheet.w + (+b.dataset.d)) * 100) / 100);
@@ -1128,6 +1146,45 @@ document.addEventListener('touchend', e => {
   if (i >= 0 && i < plan.sessions.length) { buzz(); goDay(plan, i, dx < 0 ? 'enter-next' : 'enter-prev'); }
 }, {passive:true});
 
+// ---------- звук в конце отдыха ----------
+// звук в браузере разрешён только после нажатия — «будим» его при отметке подхода
+let audioCtx = null;
+function unlockSound(){
+  if (!state.settings.restSound) return;
+  try {
+    if (!audioCtx) { const AC = window.AudioContext || window.webkitAudioContext; if (AC) audioCtx = new AC(); }
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  } catch(e) { audioCtx = null; }
+}
+function beep(){
+  if (!audioCtx) return;
+  try {
+    const t0 = audioCtx.currentTime;
+    [0, .22, .44].forEach((dt, k) => {
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.type = 'square'; o.frequency.value = k === 2 ? 1320 : 880;
+      g.gain.setValueAtTime(0, t0 + dt); g.gain.linearRampToValueAtTime(.18, t0 + dt + .01);
+      g.gain.exponentialRampToValueAtTime(.001, t0 + dt + (k === 2 ? .35 : .16));
+      o.connect(g); g.connect(audioCtx.destination); o.start(t0 + dt); o.stop(t0 + dt + .4);
+    });
+  } catch(e) {}
+}
+
+// ---------- экран не гаснет, пока приложение открыто (настройка) ----------
+let wakeLock = null;
+async function updateWakeLock(){
+  const want = state.settings.keepAwake && document.visibilityState === 'visible';
+  try { if (window.AndroidBridge && AndroidBridge.keepScreenOn) { AndroidBridge.keepScreenOn(!!want); return; } } catch(e) {}
+  if (!('wakeLock' in navigator)) return;
+  try {
+    if (want && !wakeLock) { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => { wakeLock = null; }); }
+    else if (!want && wakeLock) { await wakeLock.release(); wakeLock = null; }
+  } catch(e) { wakeLock = null; }
+}
+document.addEventListener('visibilitychange', updateWakeLock);
+// браузер даёт держать экран только после действия пользователя — пробуем и при первом нажатии
+document.addEventListener('pointerdown', () => { if (!wakeLock) updateWakeLock(); }, {passive:true});
+
 // ---------- таймер отдыха ----------
 const timer = {end:0, total:0, label:'', iv:null, hide:null, fired:false};
 function startRest(sec, label){
@@ -1153,6 +1210,7 @@ function tick(){
     document.getElementById('timer').className = 'show done';
     document.getElementById('tLbl').textContent = 'Отдых окончен — следующий подход';
     try { if (navigator.vibrate) navigator.vibrate([250, 120, 250, 120, 250]); } catch(e){}
+    if (state.settings.restSound) beep();
     clearInterval(timer.iv); timer.iv = null;
     timer.hide = setTimeout(stopRest, 10000);
   }
@@ -1369,8 +1427,40 @@ function loadPlates(total){
   for (const p of PLATES) while (left >= p.kg - 1e-9) { plates.push(p); left = Math.round((left - p.kg) * 100) / 100; }
   return {side, plates, rest:left, under:false};
 }
-function openSheet(name, weight){
-  ui.sheet = {name, base:weight, w:weight};
+// ---------- расчётный максимум и рекорды ----------
+// 1ПМ по весу и повторам: среднее формул Эпли и Бжицки; выше 10 повторов формулы врут — не считаем
+function e1rm(w, reps){
+  if (!(w > 0) || !(reps >= 1) || reps > 10) return null;
+  if (reps === 1) return w;
+  return Math.round((w * (1 + reps / 30) + w * 36 / (37 - reps)) / 2 * 2) / 2;
+}
+// «тяга» и «жим» без уточнений — как в плане тренера; «тяга блока», «жим гантелей» — подсобка, не считаем
+const LIFTS = [['squat', 'Присед', /^присед/i], ['bench', 'Жим лёжа', /^жим( лёжа| лежа)?$|^жим лёжа /i], ['dead', 'Становая', /^станов|^тяга( становая)?$/i]];
+const liftOf = name => { const l = LIFTS.find(([, , re]) => re.test(name || '')); return l ? l[0] : null; };
+// лучший расчётный максимум по каждому из трёх движений — из отмеченных подходов всех планов
+function bestLifts(skipEx){
+  const best = {};
+  for (const p of state.plans) for (const s of p.sessions) for (const e of s.exercises) {
+    if (e === skipEx || e.weight == null || !e.done.some(Boolean)) continue;
+    const id = liftOf(e.name), v = e1rm(e.weight, e.reps);
+    if (!id || v == null) continue;
+    if (!best[id] || v > best[id].v) best[id] = {v, w:e.weight, reps:e.reps, day:s.title};
+  }
+  return best;
+}
+function renderRecords(){
+  const best = bestLifts();
+  if (!LIFTS.some(([id]) => best[id])) return '';
+  return `<div class="section-title">Лучшие результаты</div>
+    <div class="card records">${LIFTS.map(([id, name]) => { const b = best[id];
+      return `<div class="rec"><span class="muted small">${name}</span>${b
+        ? `<b>≈ ${fmtW(b.v)}</b><span class="muted small">${fmtW(b.w)} × ${b.reps}</span>`
+        : '<b class="muted">—</b><span class="muted small">нет отметок</span>'}</div>`; }).join('')}
+    </div>
+    <div class="muted small" style="margin:6px 2px 0">Расчётный максимум на 1 повтор по отмеченным подходам (формулы Эпли и Бжицки, точность ±5%)</div>`;
+}
+function openSheet(name, weight, reps){
+  ui.sheet = {name, base:weight, w:weight, reps};
   document.body.classList.add('sheet-open');
   renderSheet(true);
 }
@@ -1389,6 +1479,11 @@ function renderSheet(first){
       ${barDrawing(r.plates, s.collars)}
       ${!r.plates.length ? '<div class="empty-bar">Пустой гриф</div>' : ''}
     </div>`;
+  const max = sh.reps ? e1rm(sh.base, sh.reps) : null;
+  const maxPcts = max ? [70, 80, 90, 95].map(pc => {
+    const w = Math.max(minLoad(), Math.round(max * pc / 100 / 2.5) * 2.5);
+    return `<button class="${w === sh.w ? 'on' : ''}" data-act="pct" data-w="${w}"><b>${fmtW(w)}</b><small>${pc}% 1ПМ</small></button>`;
+  }).join('') : '';
   const pcts = [50, 70, 85, 100].map(pc => {
     const w = pc === 100 ? sh.base : Math.max(minLoad(), Math.round(sh.base * pc / 100 / 2.5) * 2.5);
     return `<button class="${w === sh.w ? 'on' : ''}" data-act="pct" data-w="${w}"><b>${fmtW(w)}</b><small>${pc === 100 ? 'рабочий' : pc + '%'}</small></button>`;
@@ -1416,6 +1511,9 @@ function renderSheet(first){
            ${r.rest > 0 ? `<div class="warn">Точно не набрать: не хватает ${fmtW(r.rest)} кг на сторону</div>` : ''}`}
       <div class="section-title" style="margin-top:16px">Разминочные подходы</div>
       <div class="warm-row">${pcts}</div>
+      ${max ? `<div class="section-title" style="margin-top:16px">Расчётный максимум · ≈ ${fmtW(max)} кг</div>
+      <div class="muted small" style="margin-bottom:2px">По рабочему весу ${fmtW(sh.base)} кг × ${sh.reps}, точность ±5%. Нажмите, чтобы посчитать блины</div>
+      <div class="warm-row">${maxPcts}</div>` : ''}
       <div class="muted small" style="margin-top:12px">Гриф ${s.bar} кг${s.collars ? ' + замки 2 × 2,5 кг' : ', без замков'} · меняется в настройках</div>
     </div>`;
   const root = document.getElementById('sheet-root');
