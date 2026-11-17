@@ -677,7 +677,7 @@ function renderSettings(){
       <div class="set-row"><span>Замки по 2,5 кг<br><span class="muted small">соревновательные</span></span>
         <button class="switch ${s.collars?'on':''}" data-act="collarsToggle" role="switch" aria-checked="${s.collars}" aria-label="Замки"></button></div>
     </div>
-    <div class="muted small" style="text-align:center;margin-top:22px">TrenoNote · версия 1.31 · работает без интернета</div>`;
+    <div class="muted small" style="text-align:center;margin-top:22px">TrenoNote · версия 1.32 · работает без интернета</div>`;
 }
 
 function render(){
@@ -1447,13 +1447,20 @@ function plateStrip(weight){
   let x = 3, out = '', k = 0;
   for (const p of r.plates) {
     const h = Math.max(9, p.d / 450 * H), w = Math.max(3, p.t / 27 * 7.5);
-    const fill = chrome ? (p.kg >= 10 ? '#B9BDC2' : '#9EA3A9') : p.c;
-    out += `<rect class="pl" style="--i:${k++}" x="${x.toFixed(1)}" y="${(mid - h / 2).toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" rx="1" fill="${fill}" stroke="rgba(0,0,0,.35)" stroke-width=".6"/>`;
+    const y = (mid - h / 2).toFixed(1), i = k++;
+    if (chrome) {
+      // хром: блестящий торец и цветная полоса посередине, как в калькуляторе
+      out += `<g class="pl" style="--i:${i}"><rect x="${x.toFixed(1)}" y="${y}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" rx="1" fill="url(#wsch)" stroke="rgba(0,0,0,.4)" stroke-width=".6"/>` +
+        (p.kg >= 2.5 ? `<rect x="${(x + w * .3).toFixed(2)}" y="${(mid - h / 2 + .6).toFixed(1)}" width="${(w * .4).toFixed(2)}" height="${(h - 1.2).toFixed(1)}" fill="${p.c}"/>` : '') + '</g>';
+    } else
+      out += `<rect class="pl" style="--i:${i}" x="${x.toFixed(1)}" y="${y}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" rx="1" fill="${p.c}" stroke="rgba(0,0,0,.35)" stroke-width=".6"/>`;
     x += w + 1.2;
   }
   if (state.settings.collars) { out += `<rect x="${x.toFixed(1)}" y="${mid - 4}" width="4" height="8" rx="1" fill="#8A8F96"/>`; x += 5; }
   const W = Math.round(x + 12);
-  return `<svg class="wstrip" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" aria-hidden="true">
+  const defs = chrome ? `<defs><linearGradient id="wsch" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5b6067"/><stop offset=".15" stop-color="#f4f6f8"/>
+    <stop offset=".4" stop-color="#a7adb3"/><stop offset=".62" stop-color="#e6e9ec"/><stop offset=".85" stop-color="#7d838a"/><stop offset="1" stop-color="#4a4e54"/></linearGradient></defs>` : '';
+  return `<svg class="wstrip" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" aria-hidden="true">${defs}
     <rect x="0" y="${mid - 2}" width="${W}" height="4" rx="1" fill="currentColor" opacity=".35"/>
     <rect x="0" y="${mid - 5}" width="2.5" height="10" rx=".5" fill="currentColor" opacity=".5"/>${out}</svg>`;
 }
