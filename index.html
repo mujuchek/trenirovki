@@ -287,7 +287,7 @@ body.has-timer #toast{bottom:calc(var(--tabbar) + 88px + env(safe-area-inset-bot
 .switch.on{background:var(--ok)}
 .switch::before{content:'';position:absolute;inset:-6px -2px}
 .switch.on::after{transform:translateX(22px)}
-@media (prefers-reduced-motion:reduce){.day-body.enter,.day-body.enter-next,.day-body.enter-prev,#timer.show,.sheet,.set.pop{animation:fadeIn .15s ease!important}*{transition-property:opacity,color,background-color,border-color!important}}
+@media (prefers-reduced-motion:reduce){.wstrip .pl,.set.pop svg path,.banner.rise,.banner.rise svg,.sheet-w b{animation:none!important}.day-body.enter,.day-body.enter-next,.day-body.enter-prev,#timer.show,.sheet,.set.pop{animation:fadeIn .15s ease!important}*{transition-property:opacity,color,background-color,border-color!important}}
 
 /* ---------- калькулятор блинов ---------- */
 .weight{flex:none;text-align:right;line-height:.9;padding:2px 0 0;border:0;background:none;color:inherit}
@@ -295,6 +295,22 @@ body.has-timer #toast{bottom:calc(var(--tabbar) + 88px + env(safe-area-inset-bot
 .weight span svg{color:var(--acc)}
 .weight:active{opacity:.7}
 .wstrip{display:block;margin:6px 0 0 auto;color:var(--muted)}
+/* блины «надеваются» на гриф, когда открывается день: от тяжёлых к лёгким */
+.wstrip .pl{transform-box:fill-box}
+.day-body.enter .wstrip .pl,.day-body.enter-next .wstrip .pl,.day-body.enter-prev .wstrip .pl{animation:plateOn .3s cubic-bezier(.2,.8,.2,1) backwards;animation-delay:calc(var(--i) * 45ms + 140ms)}
+@keyframes plateOn{from{transform:translateX(16px);opacity:0}}
+/* галочка подхода прорисовывается */
+.set.pop svg path{stroke-dasharray:22;animation:drawTick .26s .06s ease-out backwards}
+@keyframes drawTick{from{stroke-dashoffset:22}}
+/* тренировка выполнена: плашка выезжает, кубок подпрыгивает один раз */
+.banner.rise{animation:dayIn .32s cubic-bezier(.2,.8,.2,1)}
+.banner.rise svg{animation:hop .5s .2s cubic-bezier(.3,1.6,.5,1)}
+@keyframes hop{40%{transform:translateY(-5px)}}
+/* цифра веса в окне блинов прокручивается, как на табло */
+.sheet-w b.tick-up{animation:rollUp .18s ease-out}
+.sheet-w b.tick-down{animation:rollDown .18s ease-out}
+@keyframes rollUp{from{transform:translateY(10px);opacity:.3}}
+@keyframes rollDown{from{transform:translateY(-10px);opacity:.3}}
 .sheet-bg{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:30;animation:fadeIn .2s ease}
 .sheet{position:fixed;left:0;right:0;bottom:0;z-index:31;max-width:560px;margin:0 auto;background:var(--surface);border:1px solid var(--line-strong);border-bottom:0;border-radius:14px 14px 0 0;padding:8px 16px calc(18px + env(safe-area-inset-bottom));max-height:90vh;overflow:auto;animation:sheetUp .26s cubic-bezier(.2,.8,.2,1)}
 @keyframes sheetUp{from{transform:translateY(100%)}to{transform:none}}
@@ -661,7 +677,7 @@ function renderSettings(){
       <div class="set-row"><span>Замки по 2,5 кг<br><span class="muted small">соревновательные</span></span>
         <button class="switch ${s.collars?'on':''}" data-act="collarsToggle" role="switch" aria-checked="${s.collars}" aria-label="Замки"></button></div>
     </div>
-    <div class="muted small" style="text-align:center;margin-top:22px">TrenoNote · версия 1.30 · работает без интернета</div>`;
+    <div class="muted small" style="text-align:center;margin-top:22px">TrenoNote · версия 1.31 · работает без интернета</div>`;
 }
 
 function render(){
@@ -691,6 +707,7 @@ function render(){
   document.querySelectorAll('textarea.auto').forEach(autosize);
   ui.lastSet = null;
   ui.dayAnim = '';
+  ui.justDone = false;
   if (view==='warmup') attachVideos(keep);
   if (view==='video') mountVideo(); else if (typeof VS !== 'undefined' && VS.el && !VS.tracking && !VS.exporting) VS.el.pause();
 }
@@ -803,7 +820,7 @@ function renderPlan(){
       <h2>${esc(day.title)}</h2>
     </div>
     <div class="wu-links">${state.warmups.map((w,k)=>`<button class="wu-link" data-act="goWu" data-i="${k}">${IC.play}${esc(w.title)}</button>`).join('')}</div>
-    ${ds.complete ? `<div class="banner">${IC.trophy}<span>Тренировка выполнена</span>
+    ${ds.complete ? `<div class="banner ${ui.justDone ? 'rise' : ''}">${IC.trophy}<span>Тренировка выполнена</span>
       ${di < plan.sessions.length-1 ? `<button data-act="day" data-i="${di+1}">День ${di+2} →</button>` : ''}</div>` : ''}
     ${day.exercises.map(renderEx).join('')}
     </div>
@@ -930,7 +947,7 @@ document.addEventListener('click', e => {
     const v = lift && ex.done[i] && before !== undefined ? e1rm(ex.weight, ex.reps) : null;
     if (v != null && before && v > before.v) setTimeout(() => toast(`Новый рекорд · ${LIFTS.find(l => l[0] === lift)[1]} ≈ ${fmtW(v)} кг`), 400);
     const nowComplete = day && sessStats(day).complete;
-    if (!wasComplete && nowComplete) { stopRest(); toast('Тренировка выполнена'); }
+    if (!wasComplete && nowComplete) { stopRest(); ui.justDone = true; ui.lastSet = ex.id+':'+i; render(); toast('Тренировка выполнена'); }
     else if (ex.done[i] && state.settings.timerOn)
       startRest(ex.weight!=null ? state.settings.restMain : state.settings.restAcc, ex.name);
   }
@@ -964,6 +981,7 @@ document.addEventListener('click', e => {
     if (ex && ex.weight != null) openSheet(ex.name, ex.weight, ex.reps);
   }
   else if (act==='pw' && ui.sheet) {
+    ui.sheet.dir = +b.dataset.d > 0 ? 'up' : 'down';
     ui.sheet.w = Math.max(minLoad(), Math.round((ui.sheet.w + (+b.dataset.d)) * 100) / 100);
     renderSheet();
   }
@@ -1426,11 +1444,11 @@ function plateStrip(weight){
   const r = loadPlates(weight);
   if (r.under || !r.plates.length) return '';
   const chrome = state.settings.plateStyle === 'chrome', H = 34, mid = H / 2;
-  let x = 3, out = '';
+  let x = 3, out = '', k = 0;
   for (const p of r.plates) {
     const h = Math.max(9, p.d / 450 * H), w = Math.max(3, p.t / 27 * 7.5);
     const fill = chrome ? (p.kg >= 10 ? '#B9BDC2' : '#9EA3A9') : p.c;
-    out += `<rect x="${x.toFixed(1)}" y="${(mid - h / 2).toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" rx="1" fill="${fill}" stroke="rgba(0,0,0,.35)" stroke-width=".6"/>`;
+    out += `<rect class="pl" style="--i:${k++}" x="${x.toFixed(1)}" y="${(mid - h / 2).toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" rx="1" fill="${fill}" stroke="rgba(0,0,0,.35)" stroke-width=".6"/>`;
     x += w + 1.2;
   }
   if (state.settings.collars) { out += `<rect x="${x.toFixed(1)}" y="${mid - 4}" width="4" height="8" rx="1" fill="#8A8F96"/>`; x += 5; }
@@ -1518,7 +1536,7 @@ function renderSheet(first){
       </div>
       <div class="sheet-w">
         <button data-act="pw" data-d="-2.5" aria-label="Минус 2,5 кг">−2,5</button>
-        <div class="num"><b>${fmtW(sh.w)}</b><span>кг</span></div>
+        <div class="num"><b class="${!first && sh.dir ? 'tick-' + sh.dir : ''}">${fmtW(sh.w)}</b><span>кг</span></div>
         <button data-act="pw" data-d="2.5" aria-label="Плюс 2,5 кг">+2,5</button>
       </div>
       ${vis}
@@ -1540,6 +1558,7 @@ function renderSheet(first){
   root.innerHTML = html;
   // анимацию выезда показываем только при открытии, а не при каждом ±2,5
   if (!first) root.querySelectorAll('.sheet,.sheet-bg').forEach(el => el.style.animation = 'none');
+  sh.dir = '';
 }
 
 
